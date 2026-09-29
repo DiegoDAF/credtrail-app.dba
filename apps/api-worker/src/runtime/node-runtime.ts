@@ -2,6 +2,7 @@ import type { AppBindings } from "../app/types";
 import { canonicalAppOrigin } from "../http/canonical-app-url";
 import { canonicalPlatformDomain } from "../http/platform-domain";
 import { createSesEmailBinding } from "../notifications/ses-email";
+import { createSmtpEmailBinding } from "../notifications/smtp-email";
 import { createS3ImmutableCredentialStore } from "../storage/s3-immutable-credential-store";
 import { createNodePublicResourceNetwork } from "./node-public-resource-network";
 
@@ -84,8 +85,20 @@ const createNodeEmailBinding = (envSource: EnvSource): SendEmail | undefined => 
     return undefined;
   }
 
+  if (provider === "smtp") {
+    requireEnv(envSource, "TRANSACTIONAL_EMAIL_FROM_ADDRESS");
+
+    return createSmtpEmailBinding({
+      host: requireEnv(envSource, "SMTP_HOST"),
+      port: Number(optionalEnv(envSource, "SMTP_PORT") ?? "587"),
+      secure: parseBooleanEnv(envSource, "SMTP_SECURE") ?? false,
+      user: optionalEnv(envSource, "SMTP_USER"),
+      password: optionalEnv(envSource, "SMTP_PASSWORD"),
+    });
+  }
+
   if (provider !== "ses") {
-    throw new Error(`Unsupported EMAIL_PROVIDER "${provider}". Node runtime supports "ses".`);
+    throw new Error(`Unsupported EMAIL_PROVIDER "${provider}". Node runtime supports "ses" and "smtp".`);
   }
 
   requireEnv(envSource, "TRANSACTIONAL_EMAIL_FROM_ADDRESS");

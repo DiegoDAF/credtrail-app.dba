@@ -16,6 +16,7 @@
     "@aws-sdk/client-s3": "^3.1055.0",
     "@aws-sdk/client-sesv2": "^3.1055.0",
     "@credtrail/core-domain": "workspace:*",
+    "nodemailer": "^7.0.0",
     "@credtrail/db": "workspace:*",
     "@credtrail/validation": "workspace:*",
     "@hono/node-server": "^2.0.10",
@@ -35,6 +36,7 @@
   },
   "devDependencies": {
     "@types/d3-scale": "^4.0.9",
-    "@types/d3-shape": "^3.1.8"
+    "@types/d3-shape": "^3.1.8",
+    "@types/nodemailer": "^7.0.0"
   }
 }
