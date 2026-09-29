@@ -1,3 +1,18 @@
+const instructorConfirmationRequirement = (condition) => {
+  if (!condition || typeof condition !== "object") return null;
+  if (condition.type === "instructor_confirmation") return condition;
+  if (Array.isArray(condition.all) && condition.all.length === 1)
+    return instructorConfirmationRequirement(condition.all[0]);
+  return null;
+};
+const currentInstructorConfirmationRequirement = () => {
+  try {
+    return instructorConfirmationRequirement(parseDefinitionJson().conditions);
+  } catch {
+    return null;
+  }
+};
+
 const readConditionFromCard = (card, strict) => {
   const typeSelect = card.querySelector(".ct-admin__condition-type");
   const negate = readCheckboxFromCard(card, "negate");
@@ -9,7 +24,16 @@ const readConditionFromCard = (card, strict) => {
   const conditionType = typeSelect.value;
   let condition = null;
 
-  if (conditionType === "course_completion") {
+  if (conditionType === "instructor_confirmation") {
+    const instructions = readFieldFromCard(card, "instructions");
+    if (strict && instructions.length === 0)
+      throw new Error("Describe what the instructor must confirm before issuing.");
+    if (negate)
+      throw new Error(
+        "Instructor confirmation cannot exclude learners. Clear the exclusion option.",
+      );
+    condition = { type: "instructor_confirmation", instructions };
+  } else if (conditionType === "course_completion") {
     const courseId = readFieldFromCard(card, "courseId");
     const courseListId = readFieldFromCard(card, "courseListId");
     const minCompletionPercent = parseNumberInput(readFieldFromCard(card, "minCompletionPercent"));
@@ -218,9 +242,7 @@ const readConditionFromCard = (card, strict) => {
 const readRuleBuilderDefinitionOptions = () => {
   const selectedTiming = getTextFieldValue("issuanceTiming");
   const issuanceTiming =
-    selectedTiming === "manual" || selectedTiming === "end_of_term"
-      ? selectedTiming
-      : "immediate";
+    selectedTiming === "manual" || selectedTiming === "end_of_term" ? selectedTiming : "immediate";
 
   return {
     issuanceTiming,
@@ -246,6 +268,9 @@ const withRuleBuilderDefinitionOptions = (definition) => {
     options: {
       ...existingOptions,
       ...readRuleBuilderDefinitionOptions(),
+      ...(instructorConfirmationRequirement(definition.conditions) === null
+        ? {}
+        : { issuanceTiming: "manual" }),
     },
   };
 };
@@ -260,8 +285,7 @@ const withNormalizedSerializedRuleBuilderDefinitionOptions = (definition) => {
       ? definition.options
       : {};
   const issuanceTiming =
-    existingOptions.issuanceTiming === "manual" ||
-    existingOptions.issuanceTiming === "end_of_term"
+    existingOptions.issuanceTiming === "manual" || existingOptions.issuanceTiming === "end_of_term"
       ? existingOptions.issuanceTiming
       : "immediate";
 
@@ -284,6 +308,15 @@ const readDefinitionFromBuilder = (strict) => {
 
   const conditions = cards.map((card) => readConditionFromCard(card, strict));
   const rootLogic = getRuleBuilderRootLogic();
+  if (
+    strict &&
+    conditions.some((condition) => condition.type === "instructor_confirmation") &&
+    (conditions.length !== 1 || rootLogic !== "all")
+  ) {
+    throw new Error(
+      "Use instructor confirmation as the only requirement, without alternative conditions.",
+    );
+  }
 
   return withRuleBuilderDefinitionOptions({
     conditions: rootLogic === "any" ? { any: conditions } : { all: conditions },
@@ -311,6 +344,9 @@ const conditionDetail = (condition, courseLabelForId) => {
   if (leaf === null || typeof leaf !== "object") {
     return "Configure requirement details.";
   }
+
+  if (leaf.type === "instructor_confirmation")
+    return leaf.instructions || "Describe what the instructor must confirm.";
 
   if (leaf.type === "course_completion") {
     const courseLabel =

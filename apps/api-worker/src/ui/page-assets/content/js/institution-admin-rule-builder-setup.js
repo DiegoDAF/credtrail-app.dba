@@ -149,6 +149,10 @@ const buildDefaultTemplateDefinitions = (courseId) => {
   const surveyId = primaryCourseId.length > 0 ? primaryCourseId + "_EXIT_SURVEY" : "";
 
   return {
+    instructor_confirmation: {
+      conditions: { all: [{ type: "instructor_confirmation", instructions: "" }] },
+      options: { issuanceTiming: "manual" },
+    },
     blank: {
       conditions: {
         all: [
@@ -269,6 +273,7 @@ const buildDefaultTemplateDefinitions = (courseId) => {
 };
 let runRuleBuilderTest = async () => {};
 const conditionTypeLabels = {
+  instructor_confirmation: "Instructor confirms completion",
   course_completion: "Course completion",
   grade_threshold: "Grade threshold",
   program_completion: "Course pathway completion",

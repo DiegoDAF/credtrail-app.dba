@@ -1,3 +1,4 @@
+import { badgeAwardIdempotencyKey } from "./badge-award-identity";
 import {
   commitAutomatedBadgeRuleEvaluation,
   findBadgeIssuanceRuleById,
@@ -365,9 +366,6 @@ export const processAutomatedBadgeRule = async (input: {
         return { status: "not_matched" };
       }
 
-      const learnerKey = await input.sha256Hex(
-        `${input.tenantId}:${version.id}:${learner.learnerId}`,
-      );
       const { job } = issueBadgeQueueJobFromRequest({
         tenantId: input.tenantId,
         recipientIdentity: learner.email,
@@ -377,7 +375,12 @@ export const processAutomatedBadgeRule = async (input: {
           learnerId: learner.learnerId,
         },
         ...(learner.displayName.length === 0 ? {} : { recipientDisplayName: learner.displayName }),
-        idempotencyKey: `rule-evaluate:${learnerKey}`,
+        idempotencyKey: await badgeAwardIdempotencyKey({
+          tenantId: input.tenantId,
+          badgeTemplateId: version.snapshot.badgeTemplateId,
+          recipientEmail: learner.email,
+          sha256Hex: input.sha256Hex,
+        }),
         achievementSource: {
           kind: "rule_version",
           provenance: {

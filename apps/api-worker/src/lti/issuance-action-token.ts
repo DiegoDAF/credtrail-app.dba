@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { AppBindings } from "../app/types";
 import {
   createSignedJsonToken,
@@ -9,62 +10,31 @@ import { ltiStateSigningSecret } from "./lti-helpers";
 
 type LtiIssuanceActionBindings = Pick<AppBindings, "LTI_STATE_SIGNING_SECRET">;
 
-export interface LtiIssuanceActionPayload {
-  tenantId: string;
-  ltiSessionId: string;
-  issuer: string;
-  clientId: string;
-  deploymentId: string;
-  contextId: string;
-  resourceLinkId: string;
-  badgeTemplateId: string;
-  issuedByUserId: string;
-  exp: number;
-}
+const issuanceActionPayloadSchema = z.object({
+  tenantId: z.string().min(1),
+  ltiSessionId: z.string().min(1),
+  issuer: z.string().min(1),
+  clientId: z.string().min(1),
+  deploymentId: z.string().min(1),
+  contextId: z.string().min(1),
+  resourceLinkId: z.string().min(1),
+  badgeTemplateId: z.string().min(1),
+  ruleId: z.string().min(1),
+  versionId: z.string().min(1),
+  issuedByUserId: z.string().min(1),
+  exp: z.number().int(),
+});
+
+/** Signed course, actor, and approved rule version authorized by the instructor launch. */
+export type LtiIssuanceActionPayload = z.infer<typeof issuanceActionPayloadSchema>;
 
 const issuanceActionSigningSecret = (env: LtiIssuanceActionBindings): string => {
   return namespacedSigningSecret(ltiStateSigningSecret(env), "issuance-action");
 };
 
-const isNonEmptyString = (value: unknown): value is string => {
-  return typeof value === "string" && value.length > 0;
-};
-
 const parseLtiIssuanceActionPayload = (value: unknown): LtiIssuanceActionPayload | null => {
-  if (value === null || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as Partial<LtiIssuanceActionPayload>;
-
-  if (
-    !isNonEmptyString(candidate.tenantId) ||
-    !isNonEmptyString(candidate.ltiSessionId) ||
-    !isNonEmptyString(candidate.issuer) ||
-    !isNonEmptyString(candidate.clientId) ||
-    !isNonEmptyString(candidate.deploymentId) ||
-    !isNonEmptyString(candidate.contextId) ||
-    !isNonEmptyString(candidate.resourceLinkId) ||
-    !isNonEmptyString(candidate.badgeTemplateId) ||
-    !isNonEmptyString(candidate.issuedByUserId) ||
-    typeof candidate.exp !== "number" ||
-    !Number.isInteger(candidate.exp)
-  ) {
-    return null;
-  }
-
-  return {
-    tenantId: candidate.tenantId,
-    ltiSessionId: candidate.ltiSessionId,
-    issuer: candidate.issuer,
-    clientId: candidate.clientId,
-    deploymentId: candidate.deploymentId,
-    contextId: candidate.contextId,
-    resourceLinkId: candidate.resourceLinkId,
-    badgeTemplateId: candidate.badgeTemplateId,
-    issuedByUserId: candidate.issuedByUserId,
-    exp: candidate.exp,
-  };
+  const parsed = issuanceActionPayloadSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 };
 
 export const createLtiIssuanceActionToken = async (
@@ -82,6 +52,8 @@ export const createLtiIssuanceActionToken = async (
     contextId: input.contextId,
     resourceLinkId: input.resourceLinkId,
     badgeTemplateId: input.badgeTemplateId,
+    ruleId: input.ruleId,
+    versionId: input.versionId,
     issuedByUserId: input.issuedByUserId,
     exp: signedJsonTokenExpiry(input.ttlSeconds),
   });

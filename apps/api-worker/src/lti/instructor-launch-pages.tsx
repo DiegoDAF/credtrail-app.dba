@@ -1,5 +1,12 @@
 import { formatIsoTimestamp } from "../utils/display-format";
-import { CtField, CtForm, CtCheckboxControl, CtInput, CtSelect } from "../ui/forms";
+import {
+  CtField,
+  CtForm,
+  CtCheckboxControl,
+  CtCheckboxField,
+  CtInput,
+  CtSelect,
+} from "../ui/forms";
 import { LTI_ACTIVE_BADGE_SUMMARY_STATUS } from "./badge-summary-helpers";
 import {
   BadgeSummaryContent,
@@ -143,7 +150,7 @@ export const BulkIssuanceSection = (input: {
               value: `${String(view.learnerCount)} of ${String(view.totalCount)}`,
             },
             {
-              label: "Issued in this launch item",
+              label: "Already issued across courses",
               value: `${String(alreadyIssuedCount)} of ${String(view.learnerCount)}`,
             },
             {
@@ -169,6 +176,12 @@ export const BulkIssuanceSection = (input: {
             value={view.issuanceActionToken ?? ""}
           />
           {table}
+          <CtCheckboxField
+            name="completion_confirmation"
+            value="confirmed"
+            required
+            label="I confirm that the selected learners have completed the badge requirements."
+          />
           <div class="lti-launch__bulk-actions">
             {missingEmailCount === 0 ? null : (
               <p class="lti-launch__hint">

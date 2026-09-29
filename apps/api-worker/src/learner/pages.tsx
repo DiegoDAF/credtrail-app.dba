@@ -1,4 +1,5 @@
-import type { LearnerBadgeSummaryRecord } from "@credtrail/db";
+import { DashboardPathways } from "./dashboard-pathways";
+import type { LearnerPathwayProgressRecord, LearnerBadgeSummaryRecord } from "@credtrail/db";
 import type { PropsWithChildren } from "hono/jsx";
 import type { HtmlEscapedString } from "hono/utils/html";
 import { CtActionGroup, CtButton } from "../ui/actions";
@@ -366,6 +367,7 @@ export const createLearnerDashboardPage = (input: CreateLearnerDashboardPageInpu
     claimNotice: string | null,
     switchOrganizationPath?: string | null,
     learnerRecordPath?: string | null,
+    pathways: readonly LearnerPathwayProgressRecord[] = [],
   ): AppPage => {
     const normalizedClaimNotice = normalizeLearnerClaimStatusNotice(claimNotice);
     const totalBadges = badges.length;
@@ -440,6 +442,10 @@ export const createLearnerDashboardPage = (input: CreateLearnerDashboardPageInpu
           </div>
         </header>
         <ClaimNotice notice={normalizedClaimNotice} />
+        <DashboardPathways
+          pathways={pathways}
+          recordPath={recordPath ?? `/tenants/${encodeURIComponent(tenantId)}/learner/record`}
+        />
         <BadgeCollection
           tenantId={tenantId}
           requestUrl={requestUrl}

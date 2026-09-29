@@ -17,6 +17,8 @@ const validInput = {
   contextId: "course-123",
   resourceLinkId: "resource-link-123",
   badgeTemplateId: "badge_template_001",
+  ruleId: "brl_123",
+  versionId: "brv_123",
   issuedByUserId: "usr_123",
   ttlSeconds: 600,
 };

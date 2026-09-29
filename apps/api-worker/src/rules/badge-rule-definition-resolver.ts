@@ -164,6 +164,7 @@ function resolveRuleConditionValueLists(
     case "assignment_submission":
     case "survey_completion":
     case "time_window":
+    case "instructor_confirmation":
     case "custom_field":
       return condition;
   }

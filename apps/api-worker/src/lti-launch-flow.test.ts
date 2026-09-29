@@ -2584,7 +2584,7 @@ describe("LTI 1.3 core launch flow", () => {
     expect(body).toContain("Loaded 1 learner from LMS roster.");
     expect(body).toContain("badge_template_001");
     expect(body).toContain("learner-one@example.edu");
-    expect(body).toContain("Issued in this launch item");
+    expect(body).toContain("Already issued across courses");
     expect(body).toContain("0 of 1");
     expect(body).toContain('action="/v1/lti/resource-link/issue"');
     expect(body).toContain('name="issuance_action_token"');
@@ -2597,11 +2597,8 @@ describe("LTI 1.3 core launch flow", () => {
     const env = createLtiEnv();
     const rosterTargetLinkUri = `${targetLinkUri}?badgeTemplateId=badge_template_001&ruleId=brl_lti_rule_123`;
     const existingAssertion = sampleAssertionRecord();
-    mockedListAssertionsByIdempotencyKeys.mockImplementation(async (_db, input) => [
-      {
-        ...existingAssertion,
-        idempotencyKey: input.idempotencyKeys[0] ?? "lti:test",
-      },
+    mockedListAssertionsByBadgeTemplatesAndRecipientEmails.mockResolvedValue([
+      { ...existingAssertion, recipientIdentity: "learner-one@example.edu" },
     ]);
     mockedListAssertionLifecycleStatesByAssertionIds.mockResolvedValue([
       {
@@ -2689,16 +2686,17 @@ describe("LTI 1.3 core launch flow", () => {
     const body = await response.text();
 
     expect(response.status).toBe(200);
-    expect(body).toContain("Issued in this launch item");
+    expect(body).toContain("Already issued across courses");
     expect(body).toContain("1 of 1");
     expect(body).toContain(`Already issued: ${existingAssertion.id}`);
     expect(body).toContain("Selectable learners");
     expect(body).toMatch(/value="learner-001"[^>]*disabled/);
-    expect(mockedListAssertionsByIdempotencyKeys).toHaveBeenCalledWith(
+    expect(mockedListAssertionsByBadgeTemplatesAndRecipientEmails).toHaveBeenCalledWith(
       fakeDb,
       expect.objectContaining({
         tenantId,
-        idempotencyKeys: [expect.stringMatching(/^lti:[a-f0-9]{64}$/)],
+        badgeTemplateIds: ["badge_template_001"],
+        recipientEmails: ["learner-one@example.edu"],
       }),
     );
     expect(mockedListAssertionLifecycleStatesByAssertionIds).toHaveBeenCalledWith(fakeDb, {
@@ -2804,6 +2802,20 @@ describe("LTI 1.3 core launch flow", () => {
 
     expect(actionToken).toBeTruthy();
 
+    const unconfirmedResponse = await isolatedApp.request(
+      "/v1/lti/resource-link/issue",
+      {
+        method: "POST",
+        body: new URLSearchParams({
+          issuance_action_token: actionToken ?? "",
+          learner_user_id: "learner-001",
+        }),
+      },
+      env,
+    );
+    expect(unconfirmedResponse.status).toBe(400);
+    expect(issueBadgeForTenant).not.toHaveBeenCalled();
+
     const issueResponse = await isolatedApp.request(
       "/v1/lti/resource-link/issue",
       {
@@ -2813,6 +2825,7 @@ describe("LTI 1.3 core launch flow", () => {
         },
         body: new URLSearchParams([
           ["issuance_action_token", actionToken ?? ""],
+          ["completion_confirmation", "confirmed"],
           ["learner_user_id", "learner-001"],
           ["learner_user_id", "learner-no-email"],
           ["learner_user_id", "forged-learner"],
@@ -2840,7 +2853,7 @@ describe("LTI 1.3 core launch flow", () => {
             identifier: "sourced-learner-001",
           },
         ],
-        idempotencyKey: expect.stringMatching(/^lti:[a-f0-9]{64}$/),
+        idempotencyKey: expect.stringMatching(/^badge-award:[a-f0-9]{64}$/),
       }),
       linkedUserId,
       {

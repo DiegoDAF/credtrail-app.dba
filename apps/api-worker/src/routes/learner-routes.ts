@@ -58,6 +58,7 @@ interface RegisterLearnerRoutesInput<DidNotice> {
     claimNotice: string | null,
     switchOrganizationPath?: string | null,
     learnerRecordPath?: string | null,
+    pathways?: readonly LearnerPathwayProgressRecord[],
   ) => AppPage;
   learnerRecordPage: (
     tenantId: string,
@@ -331,6 +332,10 @@ export const registerLearnerRoutes = <DidNotice>(
       accessibleTenantContexts.length > 1
         ? buildOrganizationsPath(`${requestUrl.pathname}${requestUrl.search}`)
         : null;
+    const pathways = await listLearnerPathwayProgress(db, {
+      tenantId: pathParams.tenantId,
+      learnerProfileId: learnerProfile.id,
+    });
     const learnerRecordPath = `/tenants/${encodeURIComponent(pathParams.tenantId)}/learner/record`;
 
     c.header("Cache-Control", "no-store");
@@ -345,6 +350,7 @@ export const registerLearnerRoutes = <DidNotice>(
         claimNotice,
         switchOrganizationPath,
         learnerRecordPath,
+        pathways,
       ),
     );
   });

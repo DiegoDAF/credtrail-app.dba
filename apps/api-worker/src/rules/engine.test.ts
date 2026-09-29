@@ -5,7 +5,10 @@ import {
   primaryEvaluationDetail,
   summarizeBadgeIssuanceRuleEvaluation,
 } from "./engine";
-import { parseCreateBadgeIssuanceRuleRequest } from "@credtrail/validation";
+import {
+  parseCreateBadgeIssuanceRuleRequest,
+  parseBadgeIssuanceRuleDefinition,
+} from "@credtrail/validation";
 
 const baseDefinition = parseCreateBadgeIssuanceRuleRequest({
   name: "CS Program Completion",
@@ -54,6 +57,28 @@ const baseDefinition = parseCreateBadgeIssuanceRuleRequest({
 }).definition;
 
 describe("badge issuance rule engine", () => {
+  it("never treats ordinary evaluation facts as instructor confirmation", () => {
+    const definition = parseBadgeIssuanceRuleDefinition({
+      conditions: { type: "instructor_confirmation", instructions: "Complete the orientation." },
+      options: { issuanceTiming: "manual" },
+    });
+    const evaluation = evaluateBadgeIssuanceRuleDefinition(definition, {
+      learnerId: "learner_123",
+      nowIso: "2026-09-29T00:00:00.000Z",
+      grades: [],
+      completions: [],
+      submissions: [],
+      surveyCompletions: [],
+      customFields: [
+        { learnerId: "learner_123", fieldName: "instructorConfirmation", value: true },
+      ],
+      earnedBadgeTemplateIds: [],
+    });
+    expect(evaluation.matched).toBe(false);
+    expect(evaluation.tree.resultKind).toBe("missing_data");
+    expect(extractBadgeIssuanceRuleRequirements(definition).courseIds).toEqual([]);
+  });
+
   it("extracts referenced courses, assignments, and prerequisites", () => {
     const requirements = extractBadgeIssuanceRuleRequirements(baseDefinition);
 

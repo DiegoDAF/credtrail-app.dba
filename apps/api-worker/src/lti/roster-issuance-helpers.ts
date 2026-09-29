@@ -1,5 +1,5 @@
 import {
-  listAssertionsByIdempotencyKeys,
+  listAssertionsByBadgeTemplatesAndRecipientEmails,
   listAssertionLifecycleStatesByAssertionIds,
   type AssertionLifecycleState,
   type SqlDatabase,
@@ -14,18 +14,6 @@ interface LtiRosterIssuedBadgeState {
   assertionId: string;
   issuedAt: string;
   lifecycleState: AssertionLifecycleState | null;
-}
-
-type LtiIssuanceIdempotencyKeyContext = Pick<
-  LtiIssuanceActionPayload,
-  "issuer" | "clientId" | "deploymentId" | "contextId" | "resourceLinkId" | "badgeTemplateId"
->;
-
-type LtiRosterIssuanceLookupContext = LtiIssuanceIdempotencyKeyContext &
-  Pick<LtiIssuanceActionPayload, "tenantId">;
-
-export interface LtiIssuanceIdempotencyKeyPrefix {
-  value: string;
 }
 
 export const selectedLearnerUserIdsFromForm = (form: FormData): string[] => {
@@ -51,31 +39,6 @@ export const ltiSessionMatchesIssuanceAction = (
   );
 };
 
-export const ltiIssuanceIdempotencyKeyPrefix = (
-  action: LtiIssuanceIdempotencyKeyContext,
-): LtiIssuanceIdempotencyKeyPrefix => {
-  return {
-    value: [
-      action.issuer,
-      action.clientId,
-      action.deploymentId,
-      action.contextId,
-      action.resourceLinkId,
-      action.badgeTemplateId,
-    ].join("|"),
-  };
-};
-
-export const ltiIssuanceIdempotencyKeyFromPrefix = async (
-  sha256Hex: (value: string) => Promise<string>,
-  prefix: LtiIssuanceIdempotencyKeyPrefix,
-  learnerUserId: string,
-): Promise<string> => {
-  const digest = await sha256Hex(`${prefix.value}|${learnerUserId}`);
-
-  return `lti:${digest}`;
-};
-
 export const skippedLtiIssuanceResult = (
   member: Pick<LtiNrpsMember, "userId" | "displayName"> & Pick<Partial<LtiNrpsMember>, "email">,
   message: string,
@@ -92,33 +55,17 @@ export const skippedLtiIssuanceResult = (
 
 export const ltiRosterIssuedBadgeStatesByUserId = async (input: {
   db: SqlDatabase;
-  sha256Hex: (value: string) => Promise<string>;
-  action: LtiRosterIssuanceLookupContext;
+  action: Pick<LtiIssuanceActionPayload, "tenantId" | "badgeTemplateId">;
   learnerMembers: readonly LtiNrpsMember[];
 }): Promise<Map<string, LtiRosterIssuedBadgeState>> => {
   const statesByUserId = new Map<string, LtiRosterIssuedBadgeState>();
-  const idempotencyKeyPrefix = ltiIssuanceIdempotencyKeyPrefix(input.action);
-  const keyedMembers = await Promise.all(
-    input.learnerMembers.map(async (member) => {
-      const idempotencyKey = await ltiIssuanceIdempotencyKeyFromPrefix(
-        input.sha256Hex,
-        idempotencyKeyPrefix,
-        member.userId,
-      );
-
-      return {
-        member,
-        idempotencyKey,
-      };
-    }),
-  );
-  const assertions = await listAssertionsByIdempotencyKeys(input.db, {
+  const assertions = await listAssertionsByBadgeTemplatesAndRecipientEmails(input.db, {
     tenantId: input.action.tenantId,
-    idempotencyKeys: keyedMembers.map((keyedMember) => keyedMember.idempotencyKey),
+    badgeTemplateIds: [input.action.badgeTemplateId],
+    recipientEmails: input.learnerMembers.flatMap((member) =>
+      member.email === undefined ? [] : [member.email],
+    ),
   });
-  const assertionsByIdempotencyKey = new Map(
-    assertions.map((assertion) => [assertion.idempotencyKey, assertion]),
-  );
   const lifecycleStates = await listAssertionLifecycleStatesByAssertionIds(input.db, {
     tenantId: input.action.tenantId,
     assertionIds: assertions.map((assertion) => assertion.id),
@@ -127,20 +74,28 @@ export const ltiRosterIssuedBadgeStatesByUserId = async (input: {
     lifecycleStates.map((lifecycle) => [lifecycle.assertionId, lifecycle]),
   );
 
-  for (const keyedMember of keyedMembers) {
-    const assertion = assertionsByIdempotencyKey.get(keyedMember.idempotencyKey) ?? null;
-
-    if (assertion === null) {
+  // A badge is the same achievement whichever approved rule or course issued it.
+  // Keep the newest record unless an active credential is available.
+  const statesByEmail = new Map<string, LtiRosterIssuedBadgeState>();
+  for (const assertion of assertions) {
+    const email = assertion.recipientIdentity.trim().toLowerCase();
+    const lifecycleState = lifecycleStatesByAssertionId.get(assertion.id)?.state ?? null;
+    const previous = statesByEmail.get(email);
+    if (
+      previous !== undefined &&
+      (previous.lifecycleState === "active" || lifecycleState !== "active")
+    )
       continue;
-    }
-
-    const lifecycle = lifecycleStatesByAssertionId.get(assertion.id);
-
-    statesByUserId.set(keyedMember.member.userId, {
+    statesByEmail.set(email, {
       assertionId: assertion.id,
       issuedAt: assertion.issuedAt,
-      lifecycleState: lifecycle?.state ?? null,
+      lifecycleState,
     });
+  }
+  for (const member of input.learnerMembers) {
+    if (member.email === undefined) continue;
+    const state = statesByEmail.get(member.email.trim().toLowerCase());
+    if (state !== undefined) statesByUserId.set(member.userId, state);
   }
 
   return statesByUserId;

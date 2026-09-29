@@ -118,6 +118,7 @@ const isConditionsStepComplete = () => {
 };
 
 const isTestStepComplete = () => {
+  if (currentInstructorConfirmationRequirement() !== null) return isConditionsStepComplete();
   const testReady =
     ruleBuilderLastTestSummary.startsWith("Matched") ||
     ruleBuilderLastTestSummary.startsWith("No match") ||
@@ -187,7 +188,7 @@ const getStepGateMessage = (stepName) => {
     }
   }
 
-  if (stepName === "test") {
+  if (stepName === "test" && currentInstructorConfirmationRequirement() === null) {
     const testReady =
       ruleBuilderLastTestSummary.startsWith("Matched") ||
       ruleBuilderLastTestSummary.startsWith("No match") ||
@@ -200,7 +201,6 @@ const getStepGateMessage = (stepName) => {
     if (getTextFieldValue("issuanceTiming").length === 0) {
       return "Choose when the badge should be issued before submitting the rule.";
     }
-
   }
 
   return ruleBuilderStepGateMessages[stepName] ?? "Complete this step before continuing.";
@@ -346,7 +346,7 @@ const setBuilderStepState = (requestedIndex) => {
     persistRuleBuilderDraftOnStepChange();
   }
 
-  if (activeStep === "test") {
+  if (activeStep === "test" && currentInstructorConfirmationRequirement() === null) {
     syncRuleBuilderTestDataSource();
     syncRuleBuilderTestRecipientFields();
 

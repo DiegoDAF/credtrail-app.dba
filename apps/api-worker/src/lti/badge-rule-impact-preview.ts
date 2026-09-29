@@ -129,14 +129,8 @@ export const previewBadgeRuleVersionImpact = async (input: {
   };
   const issuedStatesByUserId = await ltiRosterIssuedBadgeStatesByUserId({
     db: input.db,
-    sha256Hex: input.sha256Hex,
     action: {
       tenantId: input.tenantId,
-      issuer: placement.issuer,
-      clientId: placement.clientId,
-      deploymentId: placement.deploymentId,
-      contextId: ltiSession.context.id,
-      resourceLinkId: placement.resourceLinkId,
       badgeTemplateId: version.snapshot.badgeTemplateId,
     },
     learnerMembers: rosterResult.roster.learnerMembers,

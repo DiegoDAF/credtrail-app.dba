@@ -145,6 +145,7 @@ const cloneRuleBuilderConditionCard = () => {
 
 const updateConditionCardClass = (card, conditionType) => {
   card.classList.remove(
+    "ct-admin__condition-card--instructor_confirmation",
     "ct-admin__condition-card--course_completion",
     "ct-admin__condition-card--grade_threshold",
     "ct-admin__condition-card--program_completion",
@@ -185,6 +186,9 @@ const formatConditionPlainSummary = (condition, courseLabelForId) => {
   if (!condition || typeof condition !== "object" || typeof condition.type !== "string") {
     return "Requirement";
   }
+
+  if (condition.type === "instructor_confirmation")
+    return "Instructor confirms: " + (condition.instructions || "describe the requirement");
 
   if (condition.type === "course_completion") {
     const courseLabel =
@@ -235,9 +239,7 @@ const formatConditionPlainSummary = (condition, courseLabelForId) => {
     }
 
     const courseLabel =
-      courseCount > 0
-        ? condition.courseIds.map(courseLabelForId).join(", ")
-        : "required courses";
+      courseCount > 0 ? condition.courseIds.map(courseLabelForId).join(", ") : "required courses";
 
     return "Learner completes at least " + String(minimumCompleted) + " of: " + courseLabel;
   }

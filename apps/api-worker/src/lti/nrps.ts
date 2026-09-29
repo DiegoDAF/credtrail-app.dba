@@ -72,7 +72,7 @@ const ltiNrpsRosterLoadFailureLogDetail = (
 };
 
 export const loadLtiNrpsRoster = async (input: {
-  ltiTool: LtiToolPort;
+  ltiTool: Pick<LtiToolPort, "createAdvantage">;
   ltiSession: LTISession;
   contextId: string | null;
 }): Promise<LtiNrpsRosterLoadResult> => {

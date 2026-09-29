@@ -25,6 +25,7 @@ interface RuleBuilderTemplateOption {
 }
 
 const ruleBuilderConditionTypes = [
+  { value: "instructor_confirmation", label: "Instructor confirms completion" },
   { value: "course_completion", label: "Course completion" },
   { value: "grade_threshold", label: "Grade threshold" },
   { value: "program_completion", label: "Course pathway completion" },
@@ -378,6 +379,9 @@ export const RuleBuilderMetadataStep = (props: {
               ) : null}
               <AdminField label="Awarding pattern" className="ct-admin__builder-field-span">
                 <CtSelect id="rule-builder-template-preset" name="templatePreset">
+                  <option value="instructor_confirmation">
+                    Instructor confirms completion (no course required)
+                  </option>
                   <option value="course_completion">Course completed</option>
                   <option value="course_and_grade" selected>
                     Course completed + minimum score
@@ -635,9 +639,21 @@ export const RuleBuilderTestStep = (): HonoElement => {
         <section id="builder-step-test" class="ct-admin__builder-step" data-rule-step="test" hidden>
           <header class="ct-stack">
             <h3 tabindex={-1}>Check the rule</h3>
-            <p>Testing never issues a badge.</p>
+            <p id="rule-builder-test-hint">Testing never issues a badge.</p>
           </header>
-          <div class="ct-admin__builder-test-layout ct-stack">
+          <div id="rule-builder-confirmation-review" class="ct-stack" hidden>
+            <h4>Review the instructor-confirmed requirement</h4>
+            <p>
+              Instructors must confirm completion before issuing this badge. No LMS grade or course
+              completion test applies. The same badge is recognized across every course where it is
+              offered.
+            </p>
+            <p>
+              After approval, set Course availability to the whole institution or the organizational
+              area that should use this rule.
+            </p>
+          </div>
+          <div id="rule-builder-evidence-test" class="ct-admin__builder-test-layout ct-stack">
             <AdminFieldset legend="Test rule using">
               <AdminCheckboxRow
                 name="testDataSource"

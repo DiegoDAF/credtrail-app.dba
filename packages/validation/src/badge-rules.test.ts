@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   automatedBadgeRuleLifecycleWindowMatches,
+  parseBadgeIssuanceRuleDefinition,
   badgeIssuanceRuleHasCompleteLmsLearnerPopulation,
   parseBadgeIssuanceRuleAuditLogQuery,
   parseBadgeIssuanceRuleAuthoringResultQuery,
@@ -553,5 +554,39 @@ describe("badge issuance rule parsers", () => {
         currentStep: "metadata",
       });
     }).toThrow(/./);
+  });
+});
+
+describe("instructor-confirmed institutional rules", () => {
+  const confirmation = {
+    type: "instructor_confirmation",
+    instructions: "Complete Library Orientation.",
+  };
+  it("accepts a manual rule without any course reference", () => {
+    expect(
+      parseBadgeIssuanceRuleDefinition({
+        conditions: { all: [confirmation] },
+        options: { issuanceTiming: "manual" },
+      }).conditions,
+    ).toEqual({ all: [confirmation] });
+  });
+  it("rejects automation, missing instructions, exclusions, and alternative conditions", () => {
+    for (const candidate of [
+      { conditions: confirmation },
+      { conditions: confirmation, options: { issuanceTiming: "immediate" } },
+      { conditions: { ...confirmation, instructions: " " }, options: { issuanceTiming: "manual" } },
+      { conditions: { not: confirmation }, options: { issuanceTiming: "manual" } },
+      { conditions: { any: [confirmation] }, options: { issuanceTiming: "manual" } },
+      {
+        conditions: {
+          all: [
+            confirmation,
+            { type: "course_completion", courseId: "course", minCompletionPercent: 100 },
+          ],
+        },
+        options: { issuanceTiming: "manual" },
+      },
+    ])
+      expect(() => parseBadgeIssuanceRuleDefinition(candidate)).toThrow(Error);
   });
 });

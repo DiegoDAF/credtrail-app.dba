@@ -324,19 +324,39 @@ export const learnerPathwayBuilderPage = (
                 />
               </CtSelect>
             </AdminField>
+            <AdminField label="How to complete requirement 1 (optional)">
+              <CtTextarea
+                name="requirementGuidance"
+                rows={2}
+                maxlength={2000}
+                value={input.requirements[0]?.description ?? ""}
+              />
+            </AdminField>
             <details open={selectedRequirements.length > 1 ? true : undefined}>
               <summary>Add more requirements</summary>
               <div class="ct-stack">
                 {[1, 2, 3, 4].map((index) => (
-                  <AdminField label={`Requirement ${String(index + 1)}`}>
-                    <CtSelect name="requirement">
-                      <RequirementOptions
-                        badgeTemplates={input.badgeTemplates}
-                        selected={selectedRequirements[index]}
-                        allowEmpty
+                  <div class="ct-stack">
+                    <AdminField label={`Requirement ${String(index + 1)}`}>
+                      <CtSelect name="requirement">
+                        <RequirementOptions
+                          badgeTemplates={input.badgeTemplates}
+                          selected={selectedRequirements[index]}
+                          allowEmpty
+                        />
+                      </CtSelect>
+                    </AdminField>
+                    <AdminField
+                      label={`How to complete requirement ${String(index + 1)} (optional)`}
+                    >
+                      <CtTextarea
+                        name="requirementGuidance"
+                        rows={2}
+                        maxlength={2000}
+                        value={input.requirements[index]?.description ?? ""}
                       />
-                    </CtSelect>
-                  </AdminField>
+                    </AdminField>
+                  </div>
                 ))}
               </div>
             </details>
