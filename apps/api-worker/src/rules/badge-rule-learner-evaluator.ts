@@ -1,3 +1,4 @@
+import { factsForBadgeRenewal } from "./badge-renewal";
 import type { BadgeIssuanceRuleLmsProviderKind, SqlDatabase } from "@credtrail/db";
 import {
   buildIssuanceProvenanceSnapshotJson,
@@ -35,12 +36,13 @@ export const evaluateBadgeRuleLearner = async (
     readonly recipientEmail: string;
     readonly definition: BadgeIssuanceRuleDefinition;
     readonly nowIso: string;
+    readonly previousIssuedAt?: string | undefined;
     readonly gradebookProvider?: GradebookRuleFactReader | undefined;
   },
   options: GradebookRequestOptions = {},
 ): Promise<BadgeRuleLearnerEvaluationResult> => {
   try {
-    const facts = await loadRuleFacts(
+    const loadedFacts = await loadRuleFacts(
       {
         db: input.db,
         tenantId: input.tenantId,
@@ -57,7 +59,16 @@ export const evaluateBadgeRuleLearner = async (
       },
       options,
     );
-    const evaluation = evaluateBadgeIssuanceRuleDefinition(input.definition, facts);
+    const facts =
+      input.previousIssuedAt === undefined
+        ? loadedFacts
+        : factsForBadgeRenewal(loadedFacts, input.previousIssuedAt);
+    const currentEvaluation = evaluateBadgeIssuanceRuleDefinition(input.definition, loadedFacts);
+    // Freshness cannot turn an existing exclusion into permission to award.
+    const evaluation =
+      input.previousIssuedAt === undefined || !currentEvaluation.matched
+        ? currentEvaluation
+        : evaluateBadgeIssuanceRuleDefinition(input.definition, facts);
     const evaluationSummary = summarizeBadgeIssuanceRuleEvaluation(evaluation);
     const provenanceJson = buildIssuanceProvenanceSnapshotJson({
       outcome: evaluation.matched ? "matched" : "no_match",
@@ -66,7 +77,7 @@ export const evaluateBadgeRuleLearner = async (
         tree: evaluation.tree,
       },
       evaluationSummary,
-      facts: { ...facts },
+      facts: { ...loadedFacts },
       learnerId: input.learnerId,
       nowIso: input.nowIso,
     });

@@ -82,12 +82,14 @@ export const loadRuleFacts = async (
       grades: (requestedFacts.grades ?? []).map((fact) => ({
         courseId: fact.courseId,
         learnerId: fact.learnerId,
+        evidenceFrom: fact.evidenceFrom ?? null,
         currentScore: fact.currentScore ?? null,
         finalScore: fact.finalScore ?? null,
       })),
       completions: (requestedFacts.completions ?? []).map((fact) => ({
         courseId: fact.courseId,
         learnerId: fact.learnerId,
+        evidenceFrom: fact.evidenceFrom ?? null,
         completed: fact.completed,
         completionPercent: fact.completionPercent ?? null,
       })),
@@ -98,6 +100,7 @@ export const loadRuleFacts = async (
         score: fact.score ?? null,
         workflowState: fact.workflowState ?? null,
         submittedAt: fact.submittedAt ?? null,
+        gradedAt: fact.gradedAt ?? null,
       })),
       surveyCompletions: (requestedFacts.surveyCompletions ?? []).map((fact) => ({
         surveyId: fact.surveyId,
@@ -171,6 +174,10 @@ export const loadRuleFacts = async (
       ...courseGrades.map((grade) => ({
         courseId: grade.courseId,
         learnerId: grade.learnerId,
+        evidenceFrom:
+          courseCompletions.find(
+            (completion) => completion.learnerId === grade.learnerId && completion.completed,
+          )?.gradeEvidenceFrom ?? null,
         currentScore: grade.currentScore,
         finalScore: grade.finalScore,
       })),
@@ -179,6 +186,7 @@ export const loadRuleFacts = async (
       ...courseCompletions.map((completion) => ({
         courseId: completion.courseId,
         learnerId: completion.learnerId,
+        evidenceFrom: completion.evidenceFrom ?? null,
         completed: completion.completed,
         completionPercent: completion.completionPercent,
       })),
@@ -203,6 +211,7 @@ export const loadRuleFacts = async (
         score: submission.score,
         workflowState: submission.workflowState,
         submittedAt: submission.submittedAt,
+        gradedAt: submission.gradedAt,
       })),
     );
   }

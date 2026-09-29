@@ -51,6 +51,17 @@ test("an administrator can save an instructor-confirmed rule without selecting a
     await expect(page.locator("#rule-builder-evidence-test")).toBeHidden();
     await expect(page.locator('[name="issuanceTiming"]')).toHaveValue("manual");
     await expect(page.locator("#rule-builder-save-formal-draft")).toBeEnabled();
+    const renewal = page.getByLabel("Require learners to renew this badge");
+    await renewal.check();
+    await expect(page.getByLabel("Valid for (months)")).toHaveValue("12");
+    await page.getByLabel("Valid for (months)").fill("6");
+    await page.getByLabel("Valid for (months)").blur();
+    await expect(page.locator("#builder-renewal-summary")).toContainText("6 months");
+    await renewal.uncheck();
+    await expect(page.getByLabel("Valid for (months)")).toBeHidden();
+    await renewal.check();
+    await page.getByLabel("Valid for (months)").fill("12");
+    await page.getByLabel("Valid for (months)").blur();
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({
       path: "output/institution-wide-rule-desktop.png",
@@ -78,6 +89,11 @@ test("an administrator can save an instructor-confirmed rule without selecting a
     const response = await saved;
     expect(response.ok(), await response.text()).toBe(true);
     await expect(page).toHaveURL(/\/versions\//);
+    await expect(
+      page.getByText(
+        "Renewal due 12 months after each badge is earned. New completion is required.",
+      ),
+    ).toBeVisible();
     await expect(
       page
         .getByText("The learner completed Library Orientation and the final exercise.", {

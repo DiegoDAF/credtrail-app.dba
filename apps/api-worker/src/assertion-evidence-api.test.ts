@@ -229,6 +229,8 @@ describe("GET /v1/tenants/:tenantId/assertions/:assertionId/evidence", () => {
       learnerProfileId: null,
       badgeTemplateId: "tenant_123:badge_template_001",
       achievementSnapshotStatus: "captured",
+      validUntil: null,
+      renewalOfAssertionId: null,
       achievementSnapshot: {
         badgeTemplateId: "tenant_123:badge_template_001",
         title: "Applied Analytics",
@@ -285,6 +287,8 @@ describe("GET /v1/tenants/:tenantId/assertions/:assertionId/evidence", () => {
       learnerProfileId: null,
       badgeTemplateId: "tenant_123:badge_template_001",
       achievementSnapshotStatus: "captured",
+      validUntil: null,
+      renewalOfAssertionId: null,
       achievementSnapshot: {
         badgeTemplateId: "tenant_123:badge_template_001",
         title: "Applied Analytics",
@@ -383,6 +387,8 @@ describe("GET /v1/tenants/:tenantId/assertions/:assertionId/evidence", () => {
       learnerProfileId: null,
       badgeTemplateId: "tenant_123:badge_template_001",
       achievementSnapshotStatus: "captured",
+      validUntil: null,
+      renewalOfAssertionId: null,
       achievementSnapshot: {
         badgeTemplateId: "tenant_123:badge_template_001",
         title: "Applied Analytics",

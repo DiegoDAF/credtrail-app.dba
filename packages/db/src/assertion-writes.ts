@@ -41,11 +41,13 @@ export const createAssertion = async (
         status_list_index,
         idempotency_key,
         issued_at,
+        valid_until,
+        renewal_of_assertion_id,
         issued_by_user_id,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     )
     .bind(
@@ -61,6 +63,8 @@ export const createAssertion = async (
       input.statusListIndex,
       input.idempotencyKey,
       input.issuedAt,
+      input.validUntil ?? null,
+      input.renewalOfAssertionId ?? null,
       input.issuedByUserId ?? null,
       nowIso,
       nowIso,
@@ -97,6 +101,8 @@ export const createAssertion = async (
     statusListIndex: input.statusListIndex,
     idempotencyKey: input.idempotencyKey,
     issuedAt: input.issuedAt,
+    validUntil: input.validUntil ?? null,
+    renewalOfAssertionId: input.renewalOfAssertionId ?? null,
     issuedByUserId: input.issuedByUserId ?? null,
     revokedAt: null,
     createdAt: nowIso,
@@ -154,37 +160,37 @@ export const listAssertionStatusListEntries = async (
   return result.results;
 };
 
-export const recordAssertionRevocation = async (
-  db: SqlDatabase,
+/** Records revocation in the caller-owned transaction, including durable evidence refresh. */
+export const recordAssertionRevocationInTransaction = async (
+  transaction: SqlDatabase,
   input: RecordAssertionRevocationInput,
 ): Promise<RecordAssertionRevocationResult> => {
-  return runSqlTransaction(db, async (transaction) => {
-    const lockedAssertion = await transaction
-      .prepare(
-        `SELECT id FROM assertions
+  const lockedAssertion = await transaction
+    .prepare(
+      `SELECT id FROM assertions
          WHERE tenant_id = ? AND id = ?
          LIMIT 1
          FOR UPDATE`,
-      )
-      .bind(input.tenantId, input.assertionId)
-      .first<{ id: string }>();
+    )
+    .bind(input.tenantId, input.assertionId)
+    .first<{ id: string }>();
 
-    if (lockedAssertion === null) {
-      throw new Error(`Assertion "${input.assertionId}" not found for tenant "${input.tenantId}"`);
-    }
+  if (lockedAssertion === null) {
+    throw new Error(`Assertion "${input.assertionId}" not found for tenant "${input.tenantId}"`);
+  }
 
-    const assertion = await findAssertionById(transaction, input.tenantId, input.assertionId);
+  const assertion = await findAssertionById(transaction, input.tenantId, input.assertionId);
 
-    if (assertion === null) {
-      throw new Error(`Locked assertion "${input.assertionId}" could not be loaded`);
-    }
+  if (assertion === null) {
+    throw new Error(`Locked assertion "${input.assertionId}" could not be loaded`);
+  }
 
-    const effectiveRevokedAt = assertion.revokedAt ?? input.revokedAt;
+  const effectiveRevokedAt = assertion.revokedAt ?? input.revokedAt;
 
-    if (assertion.revokedAt === null) {
-      await transaction
-        .prepare(
-          `
+  if (assertion.revokedAt === null) {
+    await transaction
+      .prepare(
+        `
           UPDATE assertions
           SET revoked_at = ?,
               updated_at = ?
@@ -192,14 +198,14 @@ export const recordAssertionRevocation = async (
             AND id = ?
             AND revoked_at IS NULL
         `,
-        )
-        .bind(effectiveRevokedAt, input.revokedAt, input.tenantId, input.assertionId)
-        .run();
-    }
+      )
+      .bind(effectiveRevokedAt, input.revokedAt, input.tenantId, input.assertionId)
+      .run();
+  }
 
-    await transaction
-      .prepare(
-        `
+  await transaction
+    .prepare(
+      `
         INSERT INTO revocations (
           id,
           tenant_id,
@@ -213,32 +219,39 @@ export const recordAssertionRevocation = async (
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT DO NOTHING
       `,
-      )
-      .bind(
-        input.revocationId,
-        input.tenantId,
-        input.assertionId,
-        input.reason,
-        input.idempotencyKey,
-        input.revokedByUserId ?? null,
-        effectiveRevokedAt,
-        input.revokedAt,
-      )
-      .run();
+    )
+    .bind(
+      input.revocationId,
+      input.tenantId,
+      input.assertionId,
+      input.reason,
+      input.idempotencyKey,
+      input.revokedByUserId ?? null,
+      effectiveRevokedAt,
+      input.revokedAt,
+    )
+    .run();
 
-    if (assertion.learnerProfileId !== null && assertion.revokedAt === null) {
-      await enqueueLearnerEvidenceChange(transaction, {
-        tenantId: input.tenantId,
-        learnerProfileId: assertion.learnerProfileId,
-        trigger: "assertion_revoked",
-        evidenceEventId: input.revocationId,
-        requestedAt: input.revokedAt,
-      });
-    }
+  if (assertion.learnerProfileId !== null && assertion.revokedAt === null) {
+    await enqueueLearnerEvidenceChange(transaction, {
+      tenantId: input.tenantId,
+      learnerProfileId: assertion.learnerProfileId,
+      trigger: "assertion_revoked",
+      evidenceEventId: input.revocationId,
+      requestedAt: input.revokedAt,
+    });
+  }
 
-    return {
-      status: assertion.revokedAt === null ? "revoked" : "already_revoked",
-      revokedAt: effectiveRevokedAt,
-    };
-  });
+  return {
+    status: assertion.revokedAt === null ? "revoked" : "already_revoked",
+    revokedAt: effectiveRevokedAt,
+  };
 };
+
+export const recordAssertionRevocation = (
+  db: SqlDatabase,
+  input: RecordAssertionRevocationInput,
+): Promise<RecordAssertionRevocationResult> =>
+  runSqlTransaction(db, (transaction) =>
+    recordAssertionRevocationInTransaction(transaction, input),
+  );

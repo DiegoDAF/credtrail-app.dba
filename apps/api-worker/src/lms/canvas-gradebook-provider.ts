@@ -284,11 +284,43 @@ const parseCompletionRecord = (
   }).length;
   const completionPercent = (completedItems / assignments.length) * 100;
 
+  const completionDates = assignments.map((assignment) => {
+    const submission = submissions.find(
+      (entry) =>
+        entry.learnerId === enrollment.learnerId &&
+        entry.assignmentId === assignment.assignmentId &&
+        entry.missing !== true,
+    );
+    // A grade edit must not make an old submission look like a new attempt.
+    return submission?.submittedAt ?? null;
+  });
+  const datedCompletions = completionDates.filter((date): date is string => date !== null);
+  const evidenceFrom =
+    datedCompletions.length === assignments.length ? (datedCompletions.sort()[0] ?? null) : null;
   return {
     courseId,
     learnerId: enrollment.learnerId,
     completed: completionPercent >= 100,
-    completedAt: null,
+    completedAt: completionPercent >= 100 ? (datedCompletions.sort().at(-1) ?? null) : null,
+    evidenceFrom,
+    gradeEvidenceFrom:
+      evidenceFrom !== null &&
+      assignments.every((assignment) => {
+        const submission = submissions.find(
+          (entry) =>
+            entry.learnerId === enrollment.learnerId &&
+            entry.assignmentId === assignment.assignmentId,
+        );
+        return (
+          submission !== undefined &&
+          submission.score !== null &&
+          submission.submittedAt !== null &&
+          submission.gradedAt !== null &&
+          Date.parse(submission.gradedAt) >= Date.parse(submission.submittedAt)
+        );
+      })
+        ? evidenceFrom
+        : null,
     completionPercent,
     sourceState: "gradebook_items",
   };

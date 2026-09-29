@@ -15,6 +15,8 @@ const sampleLoadedData = (
       learnerProfileId: null,
       badgeTemplateId: "tenant_123:badge_template_001",
       achievementSnapshotStatus: "captured",
+      validUntil: null,
+      renewalOfAssertionId: null,
       achievementSnapshot: {
         badgeTemplateId: "tenant_123:badge_template_001",
         title: "Applied Analytics",

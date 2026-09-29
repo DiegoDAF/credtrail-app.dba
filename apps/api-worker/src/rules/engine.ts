@@ -4,6 +4,7 @@ import type {
 } from "@credtrail/validation";
 
 export interface BadgeIssuanceRuleGradeFact {
+  evidenceFrom?: string | null | undefined;
   courseId: string;
   learnerId: string;
   currentScore: number | null;
@@ -11,6 +12,7 @@ export interface BadgeIssuanceRuleGradeFact {
 }
 
 export interface BadgeIssuanceRuleCompletionFact {
+  evidenceFrom?: string | null | undefined;
   courseId: string;
   learnerId: string;
   completed: boolean;
@@ -18,6 +20,7 @@ export interface BadgeIssuanceRuleCompletionFact {
 }
 
 export interface BadgeIssuanceRuleSubmissionFact {
+  gradedAt?: string | null | undefined;
   courseId: string;
   assignmentId: string;
   learnerId: string;

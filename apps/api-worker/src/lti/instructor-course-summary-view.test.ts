@@ -143,6 +143,8 @@ const assertion = (overrides: Partial<AssertionRecord> = {}): AssertionRecord =>
     learnerProfileId: "learner_profile_001",
     badgeTemplateId,
     achievementSnapshotStatus: "captured",
+    validUntil: null,
+    renewalOfAssertionId: null,
     achievementSnapshot: {
       badgeTemplateId,
       title: "TypeScript Foundations",

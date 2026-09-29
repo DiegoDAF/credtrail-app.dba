@@ -364,6 +364,7 @@ export const processLearnerEvidenceChangeJobPayloadSchema = z.strictObject({
   trigger: z.enum([
     "assertion_issued",
     "assertion_revoked",
+    "assertion_status_changed",
     "learner_record_created",
     "learner_record_revised",
   ]),

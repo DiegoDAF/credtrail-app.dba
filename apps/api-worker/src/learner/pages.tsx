@@ -242,16 +242,23 @@ const BadgeCard = (input: {
   badge: LearnerDashboardBadge;
   formatIsoTimestamp: (timestampIso: string) => string;
 }): HonoElement => {
-  const statusLabel = input.badge.revokedAt === null ? "Verified" : "Revoked";
-  const statusClass =
-    input.badge.revokedAt === null
-      ? "learner-dashboard__badge-status learner-dashboard__badge-status--verified"
-      : "learner-dashboard__badge-status learner-dashboard__badge-status--revoked";
-  const badgeCardClass =
-    input.badge.revokedAt === null
-      ? "learner-dashboard__badge-card learner-dashboard__badge-card--verified"
-      : "learner-dashboard__badge-card learner-dashboard__badge-card--revoked";
-  const badgeEyebrow = input.badge.revokedAt === null ? "Earned credential" : "Credential history";
+  const current = input.badge.lifecycleState === "active";
+  const statusLabel = current
+    ? "Current"
+    : input.badge.lifecycleState === "expired"
+      ? input.badge.validUntil === null
+        ? "Expired"
+        : "Renewal due"
+      : input.badge.lifecycleState === "suspended"
+        ? "Suspended"
+        : "Revoked";
+  const statusClass = current
+    ? "learner-dashboard__badge-status learner-dashboard__badge-status--verified"
+    : "learner-dashboard__badge-status learner-dashboard__badge-status--revoked";
+  const badgeCardClass = current
+    ? "learner-dashboard__badge-card learner-dashboard__badge-card--verified"
+    : "learner-dashboard__badge-card learner-dashboard__badge-card--revoked";
+  const badgeEyebrow = current ? "Earned credential" : "Credential history";
   const publicBadgeId = input.badge.assertionPublicId ?? input.badge.assertionId;
   const publicBadgePath = `/badges/${encodeURIComponent(publicBadgeId)}`;
   const publicBadgeUrl = new URL(publicBadgePath, input.requestUrl).toString();
@@ -280,12 +287,20 @@ const BadgeCard = (input: {
           </a>
         </div>
       </div>
+      {input.badge.validUntil === null ? null : (
+        <p class="learner-dashboard__subtle">
+          Valid until {input.formatIsoTimestamp(input.badge.validUntil)} UTC.
+          {input.badge.lifecycleState === "expired"
+            ? " Complete the training again to renew this badge."
+            : null}
+        </p>
+      )}
       {input.badge.revokedAt === null ? null : (
         <p class="learner-dashboard__danger">
           Revoked at {input.formatIsoTimestamp(input.badge.revokedAt)} UTC
         </p>
       )}
-      {input.badge.revokedAt !== null ? null : input.badge.claimState === "accepted" ? (
+      {!current ? null : input.badge.claimState === "accepted" ? (
         <p class="learner-dashboard__claim-state learner-dashboard__claim-state--accepted">
           Accepted in wallet
         </p>
@@ -371,7 +386,7 @@ export const createLearnerDashboardPage = (input: CreateLearnerDashboardPageInpu
   ): AppPage => {
     const normalizedClaimNotice = normalizeLearnerClaimStatusNotice(claimNotice);
     const totalBadges = badges.length;
-    const activeBadges = badges.filter((badge) => badge.revokedAt === null).length;
+    const activeBadges = badges.filter((badge) => badge.lifecycleState === "active").length;
     const revokedBadges = totalBadges - activeBadges;
     const totalBadgesLabel = String(totalBadges);
     const activeBadgesLabel = String(activeBadges);

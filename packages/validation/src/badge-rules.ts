@@ -226,6 +226,7 @@ export const badgeIssuanceRuleConditionSchema: z.ZodType<BadgeIssuanceRuleCondit
 export const badgeIssuanceRuleDefinitionOptionsSchema = z.object({
   issuanceTiming: z.enum(["immediate", "manual", "end_of_term"]).optional(),
   reviewOnMissingFacts: z.boolean().optional(),
+  renewal: z.object({ intervalMonths: z.number().int().min(1).max(120).default(12) }).optional(),
 });
 
 /** Returns the single instructor-confirmed requirement, without an LMS course binding. */
@@ -248,6 +249,20 @@ const containsInstructorConfirmation = (condition: BadgeIssuanceRuleCondition): 
   return condition.type === "instructor_confirmation";
 };
 
+const requiresNewTrainingEvidence = (condition: BadgeIssuanceRuleCondition): boolean => {
+  if ("all" in condition) return condition.all.some(requiresNewTrainingEvidence);
+  if ("any" in condition) return condition.any.every(requiresNewTrainingEvidence);
+  if ("not" in condition) return false;
+  return [
+    "grade_threshold",
+    "course_completion",
+    "program_completion",
+    "assignment_submission",
+    "survey_completion",
+    "instructor_confirmation",
+  ].includes(condition.type);
+};
+
 export const badgeIssuanceRuleDefinitionSchema = z
   .object({
     customLabel: z.string().trim().min(1).max(200).optional(),
@@ -263,6 +278,17 @@ export const badgeIssuanceRuleDefinitionSchema = z
     options: badgeIssuanceRuleDefinitionOptionsSchema.optional(),
   })
   .superRefine((definition, context) => {
+    if (
+      definition.options?.renewal !== undefined &&
+      !requiresNewTrainingEvidence(definition.conditions)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["options", "renewal"],
+        message:
+          "Every way to earn a renewable badge must require new training, a new submission, or instructor confirmation.",
+      });
+    }
     if (!containsInstructorConfirmation(definition.conditions)) return;
     if (badgeRuleInstructorConfirmation(definition.conditions) === null) {
       context.addIssue({
@@ -412,6 +438,8 @@ export const badgeIssuanceRuleBuilderDraftBuilderStateSchema = z
     rootLogic: z.enum(["all", "any"]).optional(),
     issuanceTiming: z.enum(["immediate", "manual", "end_of_term"]).optional(),
     changeSummary: z.string().trim().max(1000).optional(),
+    renewalEnabled: z.boolean().optional(),
+    renewalIntervalMonths: z.string().max(10).optional(),
     reviewOnMissingFacts: z.boolean().optional(),
     badgeTemplateReuseAcknowledged: z.boolean().optional(),
     lastTestSummary: z.string().trim().max(500).optional(),
@@ -480,6 +508,7 @@ export const reopenApprovedBadgeIssuanceRuleVersionRequestSchema = z
 const badgeIssuanceRuleFactGradeSchema = z.object({
   courseId: z.string().trim().min(1).max(255),
   learnerId: z.string().trim().min(1).max(255),
+  evidenceFrom: isoTimestampSchema.nullable().optional(),
   currentScore: z.number().finite().nullable().optional(),
   finalScore: z.number().finite().nullable().optional(),
 });
@@ -487,6 +516,7 @@ const badgeIssuanceRuleFactGradeSchema = z.object({
 const badgeIssuanceRuleFactCompletionSchema = z.object({
   courseId: z.string().trim().min(1).max(255),
   learnerId: z.string().trim().min(1).max(255),
+  evidenceFrom: isoTimestampSchema.nullable().optional(),
   completed: z.boolean(),
   completionPercent: z.number().finite().nullable().optional(),
 });
@@ -498,6 +528,7 @@ const badgeIssuanceRuleFactSubmissionSchema = z.object({
   score: z.number().finite().nullable().optional(),
   workflowState: z.string().trim().min(1).max(64).nullable().optional(),
   submittedAt: isoTimestampSchema.nullable().optional(),
+  gradedAt: isoTimestampSchema.nullable().optional(),
 });
 
 const badgeIssuanceRuleFactSurveyCompletionSchema = z.object({

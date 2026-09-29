@@ -797,6 +797,37 @@ export const RuleBuilderTestStep = (): HonoElement => {
             </details>
           </div>
           <pre id="rule-builder-test-output" class="ct-admin__code-output" hidden></pre>
+          <AdminFieldset legend="Renewal">
+            <AdminCheckboxRow
+              name="renewalEnabled"
+              label="Require learners to renew this badge"
+              describedBy="builder-renewal-hint"
+            />
+            <CtFieldHint id="builder-renewal-hint">
+              Renewal is due after each learner's badge expires. Learners must complete the training
+              again before receiving a new badge.
+            </CtFieldHint>
+            <div id="builder-renewal-interval" hidden>
+              <AdminField label="Valid for (months)">
+                <CtInput
+                  name="renewalIntervalMonths"
+                  type="number"
+                  min="1"
+                  max="120"
+                  step="1"
+                  value="12"
+                  describedBy="builder-renewal-interval-hint"
+                />
+                <CtFieldHint id="builder-renewal-interval-hint">
+                  Counted from the date each badge is earned. Automatic renewal needs dated evidence
+                  of a new completion; an instructor can also confirm new training.
+                </CtFieldHint>
+              </AdminField>
+            </div>
+            <p id="builder-renewal-summary" class="ct-admin__hint" aria-live="polite">
+              This badge does not expire.
+            </p>
+          </AdminFieldset>
           <details class="ct-admin__builder-advanced ct-stack">
             <RuleBuilderDisclosureSummary title="Governance and release settings" />
             <p class="ct-admin__hint">

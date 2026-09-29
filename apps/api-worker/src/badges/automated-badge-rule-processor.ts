@@ -3,7 +3,7 @@ import {
   commitAutomatedBadgeRuleEvaluation,
   findBadgeIssuanceRuleById,
   findBadgeIssuanceRuleVersionById,
-  listAssertionsByBadgeTemplatesAndRecipientEmails,
+  listBadgeAwardCycles,
   normalizeEmail,
   type AutomatedBadgeRuleEvaluationReasonTag,
   type SqlDatabase,
@@ -321,19 +321,14 @@ export const processAutomatedBadgeRule = async (input: {
       nowIso: input.payload.scheduledFor,
     }));
   const discovery = await listCandidateLearners(provider, courseIds);
-  const recipientEmails = discovery.candidates.flatMap((learner) =>
-    learner.email === null ? [] : [learner.email],
-  );
-  const existingAssertions = await listAssertionsByBadgeTemplatesAndRecipientEmails(input.db, {
+  const cycles = await listBadgeAwardCycles(input.db, {
     tenantId: input.tenantId,
-    badgeTemplateIds: [version.snapshot.badgeTemplateId],
-    recipientEmails,
+    badgeTemplateId: version.snapshot.badgeTemplateId,
+    recipientEmails: discovery.candidates.flatMap((learner) =>
+      learner.email === null ? [] : [learner.email],
+    ),
   });
-  const issuedRecipientEmails = new Set(
-    existingAssertions
-      .filter((assertion) => assertion.revokedAt === null)
-      .map((assertion) => normalizeEmail(assertion.recipientIdentity)),
-  );
+  const cyclesByEmail = new Map(cycles.map((cycle) => [cycle.recipientEmail, cycle]));
   const learnerOutcomes = await mapConcurrentBounded(
     discovery.candidates,
     { concurrency: LEARNER_EVALUATION_CONCURRENCY },
@@ -342,7 +337,11 @@ export const processAutomatedBadgeRule = async (input: {
         return { status: "missing_email" };
       }
 
-      if (issuedRecipientEmails.has(normalizeEmail(learner.email))) {
+      const cycle = cyclesByEmail.get(normalizeEmail(learner.email)) ?? null;
+      if (
+        cycle !== null &&
+        (cycle.state !== "expired" || definition.options?.renewal === undefined)
+      ) {
         return { status: "already_issued" };
       }
 
@@ -356,6 +355,7 @@ export const processAutomatedBadgeRule = async (input: {
         definition,
         gradebookProvider: provider,
         nowIso: input.payload.scheduledFor,
+        previousIssuedAt: cycle?.issuedAt,
       });
 
       if (result.status === "unavailable") {
@@ -379,6 +379,7 @@ export const processAutomatedBadgeRule = async (input: {
           tenantId: input.tenantId,
           badgeTemplateId: version.snapshot.badgeTemplateId,
           recipientEmail: learner.email,
+          renewalOfAssertionId: cycle?.assertionId,
           sha256Hex: input.sha256Hex,
         }),
         achievementSource: {

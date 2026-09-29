@@ -1,3 +1,5 @@
+import { runSqlTransaction } from "./tenant-scope.js";
+import { enqueueLearnerEvidenceChange } from "./learner-evidence-change-jobs.js";
 import { createPrefixedId } from "./shared-helpers";
 import type { SqlDatabase, SqlQueryResult, SqlRunResult } from "./tenant-scope";
 import type {
@@ -22,7 +24,7 @@ import {
 } from "./assertion-internal.js";
 import type { AssertionLifecycleEventRow } from "./assertion-internal.js";
 import { findAssertionById } from "./assertion-reads.js";
-import { recordAssertionRevocation } from "./assertion-writes.js";
+import { recordAssertionRevocationInTransaction } from "./assertion-writes.js";
 
 /** Returns the status changes allowed by the credential lifecycle policy. */
 export const allowedAssertionLifecycleTransitions = (
@@ -172,6 +174,7 @@ export const listAssertionLifecycleStatesByAssertionIds = async (
         SELECT
           assertions.id AS assertionId,
           assertions.revoked_at AS revokedAt,
+          assertions.valid_until AS validUntil,
           lifecycle.to_state AS latestToState,
           lifecycle.reason_code AS latestReasonCode,
           lifecycle.reason AS latestReason,
@@ -194,6 +197,7 @@ export const listAssertionLifecycleStatesByAssertionIds = async (
       .all<{
         assertionId: string;
         revokedAt: string | null;
+        validUntil: string | null;
         latestToState: AssertionLifecycleState | null;
         latestReasonCode: AssertionLifecycleReasonCode | null;
         latestReason: string | null;
@@ -204,6 +208,7 @@ export const listAssertionLifecycleStatesByAssertionIds = async (
       ...result.results.map((row) => {
         const lifecycle = resolveAssertionLifecycleProjection({
           revokedAt: row.revokedAt,
+          validUntil: row.validUntil,
           latestToState: row.latestToState,
           latestReasonCode: row.latestReasonCode,
           latestReason: row.latestReason,
@@ -222,7 +227,7 @@ export const listAssertionLifecycleStatesByAssertionIds = async (
   return states;
 };
 
-export const recordAssertionLifecycleTransition = async (
+const recordAssertionLifecycleTransitionInTransaction = async (
   db: SqlDatabase,
   input: RecordAssertionLifecycleTransitionInput,
 ): Promise<RecordAssertionLifecycleTransitionResult> => {
@@ -244,6 +249,10 @@ export const recordAssertionLifecycleTransition = async (
     throw new Error("Automated lifecycle transitions must not set actorUserId");
   }
 
+  await db
+    .prepare("SELECT id FROM assertions WHERE tenant_id = ? AND id = ? FOR UPDATE")
+    .bind(input.tenantId, input.assertionId)
+    .first<{ id: string }>();
   const assertion = await findAssertionById(db, input.tenantId, input.assertionId);
 
   if (assertion === null) {
@@ -271,6 +280,21 @@ export const recordAssertionLifecycleTransition = async (
     };
   }
 
+  if (
+    input.toState === "active" &&
+    assertion.validUntil !== null &&
+    Date.parse(assertion.validUntil) <= Date.parse(input.transitionedAt)
+  ) {
+    return {
+      status: "invalid_transition",
+      fromState: current.state,
+      toState: input.toState,
+      currentState: current.state,
+      event: null,
+      message: "The validity period has ended. Issue a renewal after new training is completed.",
+    };
+  }
+
   const allowedTransitions = ASSERTION_LIFECYCLE_ALLOWED_TRANSITIONS[current.state];
 
   if (!allowedTransitions.has(input.toState)) {
@@ -290,7 +314,7 @@ export const recordAssertionLifecycleTransition = async (
   let effectiveTransitionedAt = input.transitionedAt;
 
   if (input.toState === "revoked") {
-    const revocationResult = await recordAssertionRevocation(db, {
+    const revocationResult = await recordAssertionRevocationInTransaction(db, {
       tenantId: input.tenantId,
       assertionId: input.assertionId,
       revocationId: createPrefixedId("rev"),
@@ -364,6 +388,16 @@ export const recordAssertionLifecycleTransition = async (
     .bind(effectiveTransitionedAt, input.tenantId, input.assertionId)
     .run();
 
+  if (assertion.learnerProfileId !== null && input.toState !== "revoked") {
+    await enqueueLearnerEvidenceChange(db, {
+      tenantId: input.tenantId,
+      learnerProfileId: assertion.learnerProfileId,
+      trigger: "assertion_status_changed",
+      evidenceEventId: eventId,
+      requestedAt: effectiveTransitionedAt,
+    });
+  }
+
   const event = await findAssertionLifecycleEventById(db, eventId);
 
   if (event === null) {
@@ -379,3 +413,12 @@ export const recordAssertionLifecycleTransition = async (
     message: null,
   };
 };
+
+/** Persists a status change and its pathway refresh atomically. */
+export const recordAssertionLifecycleTransition = (
+  db: SqlDatabase,
+  input: RecordAssertionLifecycleTransitionInput,
+): Promise<RecordAssertionLifecycleTransitionResult> =>
+  runSqlTransaction(db, (transaction) =>
+    recordAssertionLifecycleTransitionInTransaction(transaction, input),
+  );

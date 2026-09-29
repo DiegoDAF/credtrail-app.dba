@@ -1,3 +1,4 @@
+import { effectiveAssertionLifecycleStateSql } from "./assertion-lifecycle-sql.js";
 import type { AssertionLifecycleState } from "./assertion-types.js";
 import { normalizeReportingDateBoundary } from "./assertion-internal.js";
 
@@ -72,15 +73,7 @@ export const buildAssertionRecordFilterSql = (
   }
 
   if (options.includeLifecycleStatePredicate !== false && input.state !== undefined) {
-    whereClauses.push(
-      `(
-        CASE
-          WHEN assertions.revoked_at IS NOT NULL THEN 'revoked'
-          WHEN lifecycle.to_state IS NOT NULL THEN lifecycle.to_state
-          ELSE 'active'
-        END
-      ) = ?`,
-    );
+    whereClauses.push(`(${effectiveAssertionLifecycleStateSql}) = ?`);
     params.push(input.state);
   }
 

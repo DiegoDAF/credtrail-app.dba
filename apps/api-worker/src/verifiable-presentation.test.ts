@@ -249,6 +249,8 @@ const sampleAssertion = (overrides?: {
     learnerProfileId: "lpr_123",
     badgeTemplateId: "badge_template_001",
     achievementSnapshotStatus: "captured",
+    validUntil: null,
+    renewalOfAssertionId: null,
     achievementSnapshot: {
       badgeTemplateId: "badge_template_001",
       title: "TypeScript Foundations",
@@ -299,6 +301,8 @@ const sampleLearnerBadge = (
   overrides?: Partial<LearnerBadgeSummaryRecord>,
 ): LearnerBadgeSummaryRecord => {
   return {
+    validUntil: null,
+    lifecycleState: "active",
     assertionId: "tenant_123:assertion_456",
     assertionPublicId: "40a6dc92-85ec-4cb0-8a50-afb2ae700e22",
     tenantId: "tenant_123",

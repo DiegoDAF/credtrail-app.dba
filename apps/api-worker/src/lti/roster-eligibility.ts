@@ -45,6 +45,7 @@ export interface LtiRosterEligibilityResult {
   label: string;
   detail: string;
   eligibleForIssuance: boolean;
+  renewalOfAssertionId?: string;
   issuanceProvenance?: {
     ruleId: string;
     versionId: string;
@@ -273,12 +274,37 @@ const alreadyIssuedEligibilityResult = (
   );
 };
 
+/** Only an expired award governed by a renewal policy can enter another cycle. */
+export const ltiRosterRenewalIsDue = (
+  issuedState: LtiRosterIssuedBadgeStateForEligibility | null,
+  prepared: LtiRosterEligibilityPreparedEvaluation | null,
+): boolean =>
+  issuedState?.lifecycleState === "expired" &&
+  prepared?.status === "ready" &&
+  prepared.definition.options?.renewal !== undefined;
+
+const renewalEligibility = (
+  result: LtiRosterEligibilityResult,
+  previous: LtiRosterIssuedBadgeStateForEligibility | null,
+): LtiRosterEligibilityResult =>
+  previous === null
+    ? result
+    : {
+        ...result,
+        renewalOfAssertionId: previous.assertionId,
+        label: result.status === "eligible" ? "Ready to renew" : "Renewal due",
+        detail:
+          result.status === "eligible"
+            ? `New completion required for renewal. ${result.detail}`
+            : `Previous badge has expired. ${result.detail}`,
+      };
+
 const memberEligibilityBeforeRuleEvaluation = (input: {
   member: LtiNrpsMember;
   issuedState: LtiRosterIssuedBadgeStateForEligibility | null;
   prepared: LtiRosterEligibilityPreparedEvaluation;
 }): LtiRosterEligibilityResult | null => {
-  if (input.issuedState !== null) {
+  if (input.issuedState !== null && !ltiRosterRenewalIsDue(input.issuedState, input.prepared)) {
     return alreadyIssuedEligibilityResult(input.issuedState);
   }
 
@@ -332,7 +358,7 @@ const evaluateLtiRosterMemberEligibilityWithPreparedContext = async (input: {
     nowIso: input.nowIso,
     confirmedByUserId: input.confirmedByUserId,
   });
-  if (confirmation !== null) return confirmation;
+  if (confirmation !== null) return renewalEligibility(confirmation, input.issuedState);
 
   const result = await evaluateBadgeRuleLearner({
     db: input.db,
@@ -343,16 +369,20 @@ const evaluateLtiRosterMemberEligibilityWithPreparedContext = async (input: {
     recipientEmail: input.member.email,
     definition: input.prepared.definition,
     nowIso: input.nowIso,
+    previousIssuedAt: input.issuedState?.issuedAt,
   });
 
   if (result.status === "unavailable") {
-    return statusResult("unavailable", result.detail, false);
+    return renewalEligibility(statusResult("unavailable", result.detail, false), input.issuedState);
   }
 
-  return eligibilityFromEvaluation(result, {
-    ruleId: input.prepared.ruleId,
-    versionId: input.prepared.versionId,
-  });
+  return renewalEligibility(
+    eligibilityFromEvaluation(result, {
+      ruleId: input.prepared.ruleId,
+      versionId: input.prepared.versionId,
+    }),
+    input.issuedState,
+  );
 };
 
 export const evaluateLtiRosterMemberEligibility = async (input: {
@@ -363,7 +393,7 @@ export const evaluateLtiRosterMemberEligibility = async (input: {
   issuedState: LtiRosterIssuedBadgeStateForEligibility | null;
   nowIso: string;
 }): Promise<LtiRosterEligibilityResult> => {
-  if (input.issuedState !== null) {
+  if (input.issuedState !== null && input.issuedState.lifecycleState !== "expired") {
     return alreadyIssuedEligibilityResult(input.issuedState);
   }
 

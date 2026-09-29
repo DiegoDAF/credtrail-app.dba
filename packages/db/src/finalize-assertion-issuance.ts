@@ -1,3 +1,5 @@
+import { findBadgeAwardCycle, lockBadgeAwardCycle } from "./badge-award-cycle.js";
+import { parseBadgeIssuanceRuleDefinitionJson } from "@credtrail/validation";
 import { createAuditLog, type CreateAuditLogInput } from "./audit-logs.js";
 import type { BadgeAchievementSnapshot, IssuanceAchievementSource } from "@credtrail/validation";
 import { createAssertionIssuanceProvenance } from "./assertion-issuance-provenance.js";
@@ -38,7 +40,8 @@ export type FinalizeAssertionIssuanceResult =
     }
   | {
       readonly status: "learner_pathway_handoff_conflict";
-    };
+    }
+  | { readonly status: "badge_renewal_conflict" };
 
 export const finalizeAssertionIssuance = async (
   db: SqlDatabase,
@@ -64,6 +67,31 @@ export const finalizeAssertionIssuance = async (
       }
 
       achievementSnapshot = badgeAchievementSnapshotFromRuleVersion(ruleVersion.snapshot);
+      if (
+        parseBadgeIssuanceRuleDefinitionJson(ruleVersion.ruleJson).options?.renewal !== undefined
+      ) {
+        if (
+          input.assertion.validUntil === undefined ||
+          input.assertion.recipientIdentityType !== "email"
+        ) {
+          return { status: "badge_renewal_conflict" };
+        }
+        const cycleInput = {
+          tenantId: input.assertion.tenantId,
+          badgeTemplateId: achievementSnapshot.badgeTemplateId,
+          recipientEmail: input.assertion.recipientIdentity,
+        };
+        await lockBadgeAwardCycle(transactionDb, cycleInput);
+        const currentCycle = await findBadgeAwardCycle(transactionDb, cycleInput);
+        const previousId = input.assertion.renewalOfAssertionId ?? null;
+        if (
+          currentCycle === null
+            ? previousId !== null
+            : currentCycle.state !== "expired" || previousId !== currentCycle.assertionId
+        ) {
+          return { status: "badge_renewal_conflict" };
+        }
+      }
     }
 
     if (input.learnerPathwayCompletionHandoffId !== undefined) {
@@ -133,6 +161,17 @@ export const finalizeAssertionIssuance = async (
         trigger: "assertion_issued",
         evidenceEventId: assertion.id,
         requestedAt: assertion.issuedAt,
+      });
+    }
+
+    if (assertion.learnerProfileId !== null && assertion.validUntil !== null) {
+      await enqueueLearnerEvidenceChange(transactionDb, {
+        tenantId: assertion.tenantId,
+        learnerProfileId: assertion.learnerProfileId,
+        trigger: "assertion_status_changed",
+        evidenceEventId: `expiry:${assertion.id}`,
+        requestedAt: assertion.issuedAt,
+        availableAt: assertion.validUntil,
       });
     }
 

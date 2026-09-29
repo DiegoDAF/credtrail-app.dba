@@ -21,7 +21,17 @@ CredTrail records the confirming instructor, the requirement, and the approved r
 
 Award recognition uses the badge template and the learner's normalized email address within the institution. Different LMS user IDs in different courses do not create a new achievement when the email is the same. Learners without an LMS email cannot receive a roster award. Different email addresses are not assumed to be the same person.
 
-Manual roster issuance and automated rules share an award identity for the same badge and email. Repeated requests do not create another award. Previous revoked or expired awards remain visible as history and are not automatically reissued from a course roster.
+Manual roster issuance and automated rules share an award identity for the same badge and email. Repeated requests do not create another award. Previous awards remain visible as history. A renewable badge can receive a new award after it expires; suspended or revoked awards cannot be renewed until their status is resolved.
+
+## Renew recurring training
+
+In the rule builder's review step, enable **Require learners to renew this badge**. Set **Valid for (months)**; the default is 12. Each new award expires that many calendar months after the learner earns it. Month-end dates use the last day of the target month. Approve and activate the rule through the normal governance workflow.
+
+The credential carries its expiry date, and the learner dashboard shows current awards and renewal due. Expired or suspended badges do not satisfy badge prerequisites or pathway requirements. Status changes and expiry refresh pathway progress. Existing credentials without an expiry date retain their original validity; changing a rule does not rewrite issued credentials.
+
+Renewal requires evidence dated after the previous award. Automatic rules read new submissions or completed gradebook items from the master course. For a scored submission, its grade must belong to the new attempt. For a course grade or course-completion rule, every required gradebook item must have dated completion evidence; course grades also require grading of those attempts. Canvas uses submission and grading dates; Sakai uses recorded grade dates. An old passing score, missing dates, or an incomplete retake cannot renew an award. Where the LMS cannot provide dated evidence, use instructor confirmation of new training.
+
+After expiry, the same approved rule can issue the renewed badge automatically or let an instructor confirm the new completion from any eligible course. The new award receives a new validity period. Duplicate requests for the same renewal produce one award, and older awards remain in the learner's history. Renewals use the same institutional badge and normalized email identity as initial awards.
 
 ## Group badges on the learner dashboard
 
@@ -45,6 +55,6 @@ Create a badge for harassment prevention, AI training, and library research, the
 
 The instructor makes the seminar admission decision. This workflow does not change LMS enrollment or course-access settings.
 
-Automatic awards use durable delivery and a stable identity for each pathway completion. Retries do not create duplicate awards. CredTrail rechecks training evidence before issuing the final badge, including inside the transaction that records the award. If evidence was revoked before issuance, the learner must satisfy the requirements again.
+Automatic awards use durable delivery and a stable identity for each pathway completion. Retries do not create duplicate awards. CredTrail rechecks training evidence before issuing the final badge, including inside the transaction that records the award. If evidence was suspended, revoked, or expired before issuance, the learner must satisfy the requirements again.
 
 A pathway configured to wait for administrator issuance or review keeps that approval step. Its dashboard status tells learners that the final badge is still pending.

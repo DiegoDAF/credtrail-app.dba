@@ -17,6 +17,8 @@ const sampleAssertion = (overrides?: Partial<AssertionRecord>): AssertionRecord 
     learnerProfileId: "lpr_123",
     badgeTemplateId: "badge_template_123",
     achievementSnapshotStatus: "captured",
+    validUntil: null,
+    renewalOfAssertionId: null,
     achievementSnapshot: {
       badgeTemplateId: "badge_template_123",
       title: "Applied Analytics Badge",

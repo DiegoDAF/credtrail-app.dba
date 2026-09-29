@@ -11,6 +11,7 @@ import {
   LTI_ROSTER_NO_RULE_LINKED_DETAIL,
   ltiBulkIssuanceRosterLoadedMessage,
   ltiRosterAlreadyIssuedEligibilityDetail,
+  ltiRosterRenewalIsDue,
   prepareLtiRosterEligibilityEvaluationContext,
   resolveLtiRosterEligibilityRuleContext,
   rosterMemberEligibilityFromRuleResolution,
@@ -137,7 +138,10 @@ export const ltiRosterIssuanceSkipDetail = (input: {
   issuedState: LtiRosterIssuedBadgeStateForEligibility | null;
   ruleContext: LtiRosterRuleIssuanceContext;
 }): string | null => {
-  if (input.issuedState !== null) {
+  if (
+    input.issuedState !== null &&
+    !ltiRosterRenewalIsDue(input.issuedState, input.ruleContext.prepared)
+  ) {
     return ltiRosterAlreadyIssuedEligibilityDetail(input.issuedState);
   }
 

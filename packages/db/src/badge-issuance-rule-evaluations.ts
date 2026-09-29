@@ -1,3 +1,7 @@
+import {
+  effectiveAssertionLifecycleStateSql,
+  latestAssertionLifecycleJoinSql,
+} from "./assertion-lifecycle-sql.js";
 import { z } from "zod";
 import { createPrefixedId } from "./shared-helpers";
 import type { SqlDatabase, SqlQueryResult, SqlRunResult } from "./tenant-scope";
@@ -454,15 +458,21 @@ export const listIssuedBadgeTemplateIdsForRecipient = async (
     .prepare(
       `
       SELECT DISTINCT badge_template_id AS badgeTemplateId
-      FROM assertions
-      WHERE tenant_id = ?
-        AND recipient_identity = ?
+      FROM assertions ${latestAssertionLifecycleJoinSql}
+      WHERE assertions.tenant_id = ?
+        AND ${input.recipientIdentityType === "email" ? "LOWER(TRIM(recipient_identity))" : "recipient_identity"} = ?
         AND recipient_identity_type = ?
-        AND revoked_at IS NULL
+        AND (${effectiveAssertionLifecycleStateSql}) = 'active'
       ORDER BY badge_template_id ASC
     `,
     )
-    .bind(input.tenantId, input.recipientIdentity, input.recipientIdentityType)
+    .bind(
+      input.tenantId,
+      input.recipientIdentityType === "email"
+        ? input.recipientIdentity.trim().toLowerCase()
+        : input.recipientIdentity,
+      input.recipientIdentityType,
+    )
     .all<BadgeTemplateIdRow>();
 
   return result.results.map((row) => row.badgeTemplateId);

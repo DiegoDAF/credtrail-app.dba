@@ -1,3 +1,4 @@
+import { prepareRenewableBadgeIssuance } from "./renewable-badge-issuance";
 import {
   attemptIssuanceEmail,
   recordIssuanceEmailOutcome,
@@ -24,12 +25,17 @@ import {
   resolveAssertionLifecycleState,
   resolveLearnerProfileForIdentity,
   type AssertionLifecycleState,
+  type BadgeIssuanceRuleLmsProviderKind,
   type AssertionRecord,
   type RecipientIdentifierType,
   type ResolveAssertionLifecycleStateResult,
   type SqlDatabase,
 } from "@credtrail/db";
-import type { BadgeAchievementSnapshot } from "@credtrail/validation";
+import {
+  parseBadgeIssuanceRuleDefinitionJson,
+  type BadgeIssuanceRuleDefinition,
+  type BadgeAchievementSnapshot,
+} from "@credtrail/validation";
 import type { SendIssuanceEmailNotificationInput } from "../notifications/send-issuance-email";
 import type {
   SignCredentialForDidInput,
@@ -252,6 +258,10 @@ export const createIssueBadgeForTenant = <
     const db = input.resolveDatabase(context.env);
     const hasGovernedRuleSnapshot = request.achievementSource.kind === "rule_version";
     let requestedAchievement: BadgeAchievementSnapshot;
+    let governedRule: {
+      definition: BadgeIssuanceRuleDefinition;
+      lmsProviderKind: BadgeIssuanceRuleLmsProviderKind;
+    } | null = null;
 
     if (request.achievementSource.kind === "rule_version") {
       const issuanceProvenance = request.achievementSource.provenance;
@@ -268,6 +278,10 @@ export const createIssueBadgeForTenant = <
       }
 
       requestedAchievement = badgeAchievementSnapshotFromRuleVersion(ruleVersion.snapshot);
+      governedRule = {
+        definition: parseBadgeIssuanceRuleDefinitionJson(ruleVersion.ruleJson),
+        lmsProviderKind: ruleVersion.snapshot.lmsProviderKind,
+      };
     } else {
       requestedAchievement = request.achievementSource.snapshot;
     }
@@ -310,6 +324,39 @@ export const createIssueBadgeForTenant = <
         idempotencyKey: existingAssertion.idempotencyKey,
         vcR2Key: existingAssertion.vcR2Key,
         credential: existingCredential,
+      };
+    }
+
+    const issuedAt = options?.issuedAt ?? new Date().toISOString();
+    let validity: { validUntil?: string; renewalOfAssertionId?: string } = {};
+    if (
+      governedRule?.definition.options?.renewal !== undefined &&
+      request.achievementSource.kind === "rule_version"
+    ) {
+      if (request.recipientIdentityType !== "email") {
+        throw new input.HttpErrorResponseClass(422, {
+          error: "Renewable badges require the learner's email address.",
+        });
+      }
+      const renewal = await prepareRenewableBadgeIssuance({
+        db,
+        tenantId,
+        badgeTemplateId: requestedAchievement.badgeTemplateId,
+        recipientEmail: request.recipientIdentity,
+        definition: governedRule.definition,
+        lmsProviderKind: governedRule.lmsProviderKind,
+        intervalMonths: governedRule.definition.options.renewal.intervalMonths,
+        provenanceJson: request.achievementSource.provenance.provenanceJson ?? null,
+        issuedAt,
+        issuedByUserId,
+      });
+      if (renewal.status === "blocked")
+        throw new input.HttpErrorResponseClass(409, { error: renewal.detail });
+      validity = {
+        validUntil: renewal.validUntil,
+        ...(renewal.renewalOfAssertionId === undefined
+          ? {}
+          : { renewalOfAssertionId: renewal.renewalOfAssertionId }),
       };
     }
 
@@ -364,7 +411,6 @@ export const createIssueBadgeForTenant = <
       identityValue: request.recipientIdentity,
       ...(recipientDisplayName === undefined ? {} : { displayName: recipientDisplayName }),
     });
-    const issuedAt = options?.issuedAt ?? new Date().toISOString();
     const assertionId = createTenantScopedId(tenantId);
     const statusListIndex = await reserveAssertionStatusListIndex(db, tenantId);
     const statusListCredentialUrl = revocationStatusListUrlForTenant(credentialBaseUrl, tenantId);
@@ -442,6 +488,7 @@ export const createIssueBadgeForTenant = <
         name: achievement.title,
         issuer,
         validFrom: issuedAt,
+        ...(validity.validUntil === undefined ? {} : { validUntil: validity.validUntil }),
         credentialStatus: credentialStatusForAssertion(statusListCredentialUrl, statusListIndex),
         credentialSubject: {
           id: learnerDidSubjectId,
@@ -495,6 +542,7 @@ export const createIssueBadgeForTenant = <
         statusListIndex,
         idempotencyKey,
         issuedAt,
+        ...validity,
         recipientIdentifiers,
         ...(issuedByUserId === undefined ? {} : { issuedByUserId }),
       },
@@ -528,6 +576,13 @@ export const createIssueBadgeForTenant = <
             learnerPathwayCompletionHandoffId: request.learnerPathwayCompletionHandoffId,
           }),
     });
+
+    if (finalizeResult.status === "badge_renewal_conflict") {
+      throw new input.HttpErrorResponseClass(409, {
+        error:
+          "This learner's badge status changed. Refresh eligibility before issuing the renewal.",
+      });
+    }
 
     if (finalizeResult.status === "lms_identity_conflict") {
       throw new input.HttpErrorResponseClass(409, {

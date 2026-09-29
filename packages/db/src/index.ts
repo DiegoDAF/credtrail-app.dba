@@ -57,3 +57,5 @@ export * from "./learner-record-import-history";
 
 export { renameBadgeIssuanceRule } from "./badge-issuance-rule-names";
 export * from "./learner-pathway-awards.js";
+
+export * from "./badge-award-cycle.js";

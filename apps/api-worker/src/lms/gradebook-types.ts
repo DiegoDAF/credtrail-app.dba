@@ -92,6 +92,10 @@ export interface GradebookGradeRecord {
 }
 
 export interface GradebookCompletionRecord {
+  /** Earliest completion of the required items; absent when dates cannot prove a fresh course completion. */
+  evidenceFrom?: string | null | undefined;
+  /** All scored attempts were graded after their current submissions. */
+  gradeEvidenceFrom?: string | null | undefined;
   courseId: string;
   learnerId: string;
   completed: boolean;

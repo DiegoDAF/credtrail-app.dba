@@ -34,6 +34,7 @@ export const buildLtiRosterIssueBadgeRequest = async (input: {
       tenantId: input.tenantId,
       badgeTemplateId: input.badgeTemplateId,
       recipientEmail: input.member.email,
+      renewalOfAssertionId: input.eligibility.renewalOfAssertionId,
       sha256Hex: input.sha256Hex,
     }),
     achievementSource: {

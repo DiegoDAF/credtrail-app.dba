@@ -22,6 +22,8 @@ const readRuleBuilderDraftPayload = () => {
     labelMode: getTextFieldValue("name").length > 0 ? "custom" : "automatic",
     rootLogic: getTextFieldValue("rootLogic"),
     issuanceTiming: getTextFieldValue("issuanceTiming"),
+    renewalEnabled: getCheckboxFieldValue("renewalEnabled"),
+    renewalIntervalMonths: getTextFieldValue("renewalIntervalMonths"),
     changeSummary: getTextFieldValue("changeSummary"),
     badgeTemplateReuseAcknowledged: ruleBuilderBadgeTemplatePicker.isReuseAcknowledged(),
     reviewOnMissingFacts:
@@ -187,6 +189,17 @@ const applyRuleBuilderPayload = (payloadContext, sourceLabel) => {
 
     if (typeof builderState.issuanceTiming === "string") {
       setRuleCreateFieldValue("issuanceTiming", builderState.issuanceTiming);
+    }
+
+    const renewalField = getRuleCreateField("renewalEnabled");
+    if (
+      renewalField instanceof HTMLInputElement &&
+      typeof builderState.renewalEnabled === "boolean"
+    ) {
+      renewalField.checked = builderState.renewalEnabled;
+    }
+    if (typeof builderState.renewalIntervalMonths === "string") {
+      setRuleCreateFieldValue("renewalIntervalMonths", builderState.renewalIntervalMonths);
     }
 
     if (typeof builderState.changeSummary === "string") {
@@ -507,4 +520,10 @@ if (ruleBuilderExportJsonButton instanceof HTMLButtonElement) {
       syncRuleBuilderSummary(error instanceof Error ? error.message : "Unable to export JSON.");
     }
   });
+}
+
+for (const name of ["renewalEnabled", "renewalIntervalMonths"]) {
+  const field = getRuleCreateField(name);
+  if (field instanceof HTMLInputElement)
+    field.addEventListener("change", () => syncDefinitionJsonFromBuilder());
 }

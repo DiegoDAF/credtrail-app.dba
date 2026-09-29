@@ -273,6 +273,22 @@ const syncRuleBuilderSummary = (statusOverride) => {
     const element = document.getElementById(id);
     if (element) element.textContent = value;
   };
+  const renewalEnabled = getCheckboxFieldValue("renewalEnabled");
+  const renewalInterval = document.getElementById("builder-renewal-interval");
+  if (renewalInterval) renewalInterval.hidden = !renewalEnabled;
+  const renewalMonths = getRuleCreateField("renewalIntervalMonths");
+  if (renewalMonths instanceof HTMLInputElement) {
+    renewalMonths.disabled = !renewalEnabled;
+    renewalMonths.required = renewalEnabled;
+  }
+  setWorkflowText(
+    "builder-renewal-summary",
+    renewalEnabled
+      ? "Renewal due " +
+          getTextFieldValue("renewalIntervalMonths") +
+          " months after each badge is earned."
+      : "This badge does not expire.",
+  );
   setWorkflowText("builder-badge-owner", workflow?.badgeOwner ?? "Choose a badge first.");
   setWorkflowText("builder-rule-author", workflow?.ruleAuthor ?? "Choose a badge first.");
   setWorkflowText(
@@ -746,6 +762,13 @@ const applyDefinitionToBuilder = (definition, sourceLabel) => {
       : "immediate";
 
   setRuleCreateFieldValue("issuanceTiming", selectedIssuanceTiming);
+  const renewalEnabledField = getRuleCreateField("renewalEnabled");
+  if (renewalEnabledField instanceof HTMLInputElement)
+    renewalEnabledField.checked = definition.options?.renewal !== undefined;
+  setRuleCreateFieldValue(
+    "renewalIntervalMonths",
+    String(definition.options?.renewal?.intervalMonths ?? 12),
+  );
 
   if (reviewOnMissingFactsField instanceof HTMLInputElement) {
     reviewOnMissingFactsField.checked = reviewOnMissingFacts;

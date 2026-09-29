@@ -24,12 +24,14 @@ export const ONE_SHOT_ASSERTION_ENGAGEMENT_EVENT_TYPES = new Set<AssertionEngage
 ]);
 
 interface AssertionAchievementSnapshotRow {
+  validUntil: string | null;
   badgeTemplateId: string;
   achievementSnapshotJson: string | null;
   achievementSnapshotStatus: string;
 }
 
 export interface AssertionRow extends AssertionAchievementSnapshotRow {
+  renewalOfAssertionId: string | null;
   id: string;
   tenantId: string;
   publicId: string | null;
@@ -184,50 +186,22 @@ export const assertionLifecycleStateFromRecords = (input: {
   assertion: AssertionRecord;
   latestEvent: AssertionLifecycleEventRecord | null;
 }): ResolveAssertionLifecycleStateResult => {
-  if (input.assertion.revokedAt !== null && input.latestEvent?.toState === "revoked") {
-    return {
-      state: "revoked",
-      source: "lifecycle_event",
-      reasonCode: input.latestEvent.reasonCode,
-      reason: input.latestEvent.reason ?? "credential has been revoked by issuer",
-      transitionedAt: input.latestEvent.transitionedAt,
-      revokedAt: input.assertion.revokedAt,
-    };
-  }
-
-  if (input.assertion.revokedAt !== null) {
-    return {
-      state: "revoked",
-      source: "assertion_revocation",
-      reasonCode: null,
-      reason: "credential has been revoked by issuer",
-      transitionedAt: input.assertion.revokedAt,
-      revokedAt: input.assertion.revokedAt,
-    };
-  }
-
-  if (input.latestEvent !== null) {
-    return {
-      state: input.latestEvent.toState,
-      source: "lifecycle_event",
-      reasonCode: input.latestEvent.reasonCode,
-      reason: input.latestEvent.reason,
-      transitionedAt: input.latestEvent.transitionedAt,
-      revokedAt: null,
-    };
-  }
-
   return {
-    state: "active",
-    source: "default_active",
-    reasonCode: null,
-    reason: null,
-    transitionedAt: null,
-    revokedAt: null,
+    ...resolveAssertionLifecycleProjection({
+      validUntil: input.assertion.validUntil,
+      revokedAt: input.assertion.revokedAt,
+      latestToState: input.latestEvent?.toState ?? null,
+      latestReasonCode: input.latestEvent?.reasonCode ?? null,
+      latestReason: input.latestEvent?.reason ?? null,
+      latestTransitionedAt: input.latestEvent?.transitionedAt ?? null,
+    }),
+    revokedAt: input.assertion.revokedAt,
   };
 };
 
 export const resolveAssertionLifecycleProjection = (input: {
+  validUntil: string | null;
+  nowIso?: string;
   revokedAt: string | null;
   latestToState: AssertionLifecycleState | null;
   latestReasonCode: AssertionLifecycleReasonCode | null;
@@ -254,6 +228,17 @@ export const resolveAssertionLifecycleProjection = (input: {
     source = "assertion_revocation";
     reason = "credential has been revoked by issuer";
     transitionedAt = input.revokedAt;
+  } else if (
+    input.latestToState !== "suspended" &&
+    input.latestToState !== "revoked" &&
+    input.validUntil !== null &&
+    Date.parse(input.validUntil) <= Date.parse(input.nowIso ?? new Date().toISOString())
+  ) {
+    state = "expired";
+    source = "validity_period";
+    reasonCode = "credential_expired";
+    reason = "credential validity period has ended";
+    transitionedAt = input.validUntil;
   } else if (input.latestToState !== null) {
     state = input.latestToState;
     source = "lifecycle_event";
@@ -325,6 +310,8 @@ export const mapAssertionRow = (row: AssertionRow): AssertionRecord => {
   return {
     id: row.id,
     tenantId: row.tenantId,
+    validUntil: row.validUntil,
+    renewalOfAssertionId: row.renewalOfAssertionId,
     publicId: row.publicId,
     learnerProfileId: row.learnerProfileId,
     badgeTemplateId: row.badgeTemplateId,
@@ -400,6 +387,7 @@ export const mapLearnerRecordAssertionExportRow = (
     assertionId: row.assertionId,
     assertionPublicId: row.assertionPublicId,
     state: resolveAssertionLifecycleProjection({
+      validUntil: row.validUntil,
       revokedAt: row.revokedAt,
       latestToState: row.latestToState,
       latestReasonCode: null,
@@ -432,6 +420,7 @@ export const mapTenantAssertionSummaryRow = (
 ): TenantAssertionSummaryRecord => {
   const achievement = resolveStoredAssertionAchievement(row).snapshot;
   const lifecycle = resolveAssertionLifecycleProjection({
+    validUntil: row.validUntil,
     revokedAt: row.revokedAt,
     latestToState: row.latestToState,
     latestReasonCode: row.latestReasonCode,
@@ -461,6 +450,7 @@ export const mapTenantAssertionLedgerExportRow = (
 ): TenantAssertionLedgerExportRowRecord => {
   const achievement = resolveStoredAssertionAchievement(row).snapshot;
   const lifecycle = resolveAssertionLifecycleProjection({
+    validUntil: row.validUntil,
     revokedAt: row.revokedAt,
     latestToState: row.latestToState,
     latestReasonCode: row.latestReasonCode,

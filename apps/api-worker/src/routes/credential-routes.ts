@@ -26,7 +26,7 @@ interface VerificationAssertion {
 
 interface AssertionLifecycleSummary {
   state: "active" | "suspended" | "revoked" | "expired";
-  source: "lifecycle_event" | "assertion_revocation" | "default_active";
+  source: "lifecycle_event" | "assertion_revocation" | "default_active" | "validity_period";
   reasonCode: string | null;
   reason: string | null;
   transitionedAt: string | null;

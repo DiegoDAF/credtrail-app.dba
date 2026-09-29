@@ -70,6 +70,8 @@ const sampleLearnerBadgeSummary = (
   overrides: Partial<LearnerBadgeSummaryRecord> = {},
 ): LearnerBadgeSummaryRecord => {
   return {
+    validUntil: null,
+    lifecycleState: "active",
     assertionId: "tenant_123:assertion_existing",
     assertionPublicId: "public_badge_001",
     tenantId: "tenant_123",

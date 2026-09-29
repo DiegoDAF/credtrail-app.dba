@@ -247,6 +247,9 @@ const readRuleBuilderDefinitionOptions = () => {
   return {
     issuanceTiming,
     reviewOnMissingFacts: getCheckboxFieldValue("reviewOnMissingFacts"),
+    renewal: getCheckboxFieldValue("renewalEnabled")
+      ? { intervalMonths: Number(getTextFieldValue("renewalIntervalMonths")) }
+      : undefined,
   };
 };
 

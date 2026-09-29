@@ -267,6 +267,33 @@ const formatRemovedRequirement = (
 const describeRuleDefinitionDiffChangeDetailed = (
   change: RuleDefinitionDiffChange,
 ): RuleDefinitionDiffDescription => {
+  if (
+    change.path === "definition.options.renewal" ||
+    change.path === "definition.options.renewal.intervalMonths"
+  ) {
+    const months = (value: unknown): number | null =>
+      typeof value === "number"
+        ? value
+        : isJsonRecord(value) && typeof value.intervalMonths === "number"
+          ? value.intervalMonths
+          : null;
+    const before = months(change.before);
+    const after = months(change.after);
+    if (after === null)
+      return {
+        text: "Renewal requirement removed. New awards will not expire.",
+        reviewImpact: "loosening",
+      };
+    if (before === null)
+      return {
+        text: `Renewal required ${String(after)} months after each award.`,
+        reviewImpact: "tightening",
+      };
+    return {
+      text: `Renewal interval changed from ${String(before)} to ${String(after)} months after each award.`,
+      reviewImpact: after > before ? "loosening" : "tightening",
+    };
+  }
   const thresholdChange = formatThresholdChange(change);
 
   if (thresholdChange !== null) {

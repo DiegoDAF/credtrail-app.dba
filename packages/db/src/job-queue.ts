@@ -47,6 +47,7 @@ export interface EnqueueJobQueueMessageInput {
 }
 
 export interface EnqueueJobQueueMessageOnceInput extends EnqueueJobQueueMessageInput {
+  availableAt?: string | undefined;
   nowIso?: string | undefined;
 }
 
@@ -532,7 +533,7 @@ export const enqueueJobQueueMessageOnce = async (
       payloadJson,
       input.idempotencyKey,
       maxAttempts,
-      nowIso,
+      input.availableAt ?? nowIso,
       nowIso,
       nowIso,
     )

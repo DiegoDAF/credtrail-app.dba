@@ -17,6 +17,8 @@ export interface AssertionRecord {
   statusListIndex: number | null;
   idempotencyKey: string;
   issuedAt: string;
+  validUntil: string | null;
+  renewalOfAssertionId: string | null;
   issuedByUserId: string | null;
   revokedAt: string | null;
   createdAt: string;
@@ -87,7 +89,7 @@ export interface ListAssertionLifecycleEventsInput {
 
 export interface ResolveAssertionLifecycleStateResult {
   state: AssertionLifecycleState;
-  source: "assertion_revocation" | "lifecycle_event" | "default_active";
+  source: "assertion_revocation" | "lifecycle_event" | "default_active" | "validity_period";
   reasonCode: AssertionLifecycleReasonCode | null;
   reason: string | null;
   transitionedAt: string | null;
@@ -140,6 +142,8 @@ export interface CreateAssertionInput {
   statusListIndex: number;
   idempotencyKey: string;
   issuedAt: string;
+  validUntil?: string | undefined;
+  renewalOfAssertionId?: string | undefined;
   issuedByUserId?: string | undefined;
   recipientIdentifiers?: readonly RecipientIdentifierInput[];
 }

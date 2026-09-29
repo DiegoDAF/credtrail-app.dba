@@ -206,6 +206,14 @@ export const BadgeRuleVersionOverview = (input: {
           <h3>Applies to</h3>
           <dl class="ct-admin__rule-version-metadata">
             <div>
+              <dt>Renewal</dt>
+              <dd>
+                {input.definition.options?.renewal === undefined
+                  ? "This badge does not expire."
+                  : `Renewal due ${String(input.definition.options.renewal.intervalMonths)} months after each badge is earned. New completion is required.`}
+              </dd>
+            </div>
+            <div>
               <dt>LMS</dt>
               <dd>{displayFields.lmsProviderLabel}</dd>
             </div>

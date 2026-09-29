@@ -1,3 +1,8 @@
+import type { AssertionLifecycleState } from "./assertion-types.js";
+import {
+  effectiveAssertionLifecycleStateSql,
+  latestAssertionLifecycleJoinSql,
+} from "./assertion-lifecycle-sql.js";
 import {
   bindLearnerProfileOrEmailAccessParams,
   buildLearnerProfileOrEmailAccessFilter,
@@ -21,6 +26,8 @@ export interface LearnerBadgeSummaryRecord {
   badgeDescription: string | null;
   issuedAt: string;
   revokedAt: string | null;
+  validUntil: string | null;
+  lifecycleState: AssertionLifecycleState;
 }
 
 export interface ListLearnerBadgeSummariesInput {
@@ -49,6 +56,8 @@ interface LearnerBadgeSummaryRow extends StoredAssertionAchievementInput {
   tenantId: string;
   issuedAt: string;
   revokedAt: string | null;
+  validUntil: string | null;
+  lifecycleState: AssertionLifecycleState;
 }
 
 const learnerBadgeSummarySelectClause = `
@@ -59,7 +68,8 @@ const learnerBadgeSummarySelectClause = `
     assertions.badge_template_id AS badgeTemplateId,
     ${assertionAchievementSnapshotSelectSql},
     assertions.issued_at AS issuedAt,
-    assertions.revoked_at AS revokedAt
+    assertions.revoked_at AS revokedAt,
+    ${effectiveAssertionLifecycleStateSql} AS lifecycleState
 `;
 
 const mapLearnerBadgeSummaryRow = (row: LearnerBadgeSummaryRow): LearnerBadgeSummaryRecord => {
@@ -74,6 +84,8 @@ const mapLearnerBadgeSummaryRow = (row: LearnerBadgeSummaryRow): LearnerBadgeSum
     badgeDescription: achievement.description,
     issuedAt: row.issuedAt,
     revokedAt: row.revokedAt,
+    validUntil: row.validUntil,
+    lifecycleState: row.lifecycleState,
   };
 };
 
@@ -131,7 +143,7 @@ const buildLearnerBadgeSummaryWhereClause = (
   }
 
   if (query.claimableOnly === true) {
-    filters.push("assertions.revoked_at IS NULL");
+    filters.push(`(${effectiveAssertionLifecycleStateSql}) = 'active'`);
   }
 
   if (access.learnerProfileId === null) {
@@ -171,7 +183,7 @@ const listLearnerBadgeSummariesForAccess = async (
     .prepare(
       `
       ${learnerBadgeSummarySelectClause}
-      FROM assertions
+      FROM assertions ${latestAssertionLifecycleJoinSql}
       WHERE ${where.whereClause}
       ORDER BY assertions.issued_at DESC
     `,
@@ -198,7 +210,7 @@ const findLearnerBadgeSummaryForAccess = async (
     .prepare(
       `
       ${learnerBadgeSummarySelectClause}
-      FROM assertions
+      FROM assertions ${latestAssertionLifecycleJoinSql}
       WHERE ${where.whereClause}
     `,
     )

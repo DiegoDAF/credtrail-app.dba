@@ -1,3 +1,7 @@
+import {
+  effectiveAssertionLifecycleStateSql,
+  latestAssertionLifecycleJoinSql,
+} from "./assertion-lifecycle-sql.js";
 import { createAuditLog } from "./audit-logs";
 import { enqueueJobQueueMessageOnce } from "./job-queue.js";
 import { groupLearnerPathwayValues } from "./learner-pathway-collections.js";
@@ -43,7 +47,7 @@ interface EnrollmentContextRow {
 
 interface EvidenceRow {
   evidenceId: string;
-  state: "active" | "revoked" | "expired";
+  state: "active" | "revoked" | "expired" | "suspended";
 }
 
 interface RequirementWaiverRow {
@@ -519,15 +523,26 @@ const listRequirementEvidence = async (
     )
     .bind(input.tenantId, input.enrollmentId, ...requirementIds)
     .all<RequirementWaiverRow>();
+  // Lock first, then read the latest status in a new statement snapshot. A status
+  // transition that finishes while we wait must be visible to finalization.
+  if (badgeTemplateIds.length > 0) {
+    await db
+      .prepare(`SELECT id FROM assertions
+      WHERE tenant_id = ? AND learner_profile_id = ?
+        AND badge_template_id IN (${badgeTemplateIds.map(() => "?").join(", ")})
+      ORDER BY id FOR SHARE`)
+      .bind(input.tenantId, input.learnerProfileId, ...badgeTemplateIds)
+      .all<{ id: string }>();
+  }
   const badgeEvidence: readonly BadgeEvidenceRow[] =
     badgeTemplateIds.length === 0
       ? []
       : await db
           .prepare(
-            `SELECT badge_template_id AS badgeTemplateId, id AS evidenceId,
-              CASE WHEN revoked_at IS NULL THEN 'active' ELSE 'revoked' END AS state
-             FROM assertions
-             WHERE tenant_id = ? AND learner_profile_id = ?
+            `SELECT assertions.badge_template_id AS badgeTemplateId, assertions.id AS evidenceId,
+              ${effectiveAssertionLifecycleStateSql} AS state
+             FROM assertions ${latestAssertionLifecycleJoinSql}
+             WHERE assertions.tenant_id = ? AND assertions.learner_profile_id = ?
                AND badge_template_id IN (${badgeTemplateIds.map(() => "?").join(", ")})
              ORDER BY issued_at DESC`,
           )
@@ -599,7 +614,7 @@ const listRequirementEvidence = async (
         state === "met"
           ? "Institution-verified evidence is current"
           : state === "invalidated"
-            ? "Previously recorded evidence is revoked or expired"
+            ? "Previously recorded evidence is suspended, revoked, or expired"
             : "No qualifying evidence recorded",
     };
   });

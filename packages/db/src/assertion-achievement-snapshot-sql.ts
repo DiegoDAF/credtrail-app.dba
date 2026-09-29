@@ -1,7 +1,8 @@
 /** Assertion snapshot columns, including explicit preservation state. */
 export const assertionAchievementSnapshotSelectSql = `
   assertions.achievement_snapshot_json AS achievementSnapshotJson,
-  assertions.achievement_snapshot_status AS achievementSnapshotStatus
+  assertions.achievement_snapshot_status AS achievementSnapshotStatus,
+  assertions.valid_until AS validUntil
 `;
 
 /** Complete assertion-record projection used by direct assertion reads. */
@@ -18,6 +19,7 @@ export const assertionRecordSelectSql = `
   assertions.status_list_index AS statusListIndex,
   assertions.idempotency_key AS idempotencyKey,
   assertions.issued_at AS issuedAt,
+  assertions.renewal_of_assertion_id AS renewalOfAssertionId,
   assertions.issued_by_user_id AS issuedByUserId,
   assertions.revoked_at AS revokedAt,
   assertions.created_at AS createdAt,

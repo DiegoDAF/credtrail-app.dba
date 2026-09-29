@@ -58,12 +58,11 @@ const completionStateFromRow = (
   evaluationResult: LearnerPathwayEvaluationResult,
   completionBehavior: LearnerPathwayCompletionBehavior,
 ): LearnerPathwayProgressState => {
+  if (evaluationResult === "invalidated") return { _tag: "invalidated" };
   if (row === null || row.status === "cancelled") {
     switch (evaluationResult) {
       case "complete":
         return { _tag: "complete" };
-      case "invalidated":
-        return { _tag: "invalidated" };
       case "in_progress":
         return { _tag: "in_progress" };
       case "needs_review":

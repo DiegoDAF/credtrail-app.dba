@@ -316,11 +316,7 @@ ruleCreateForm.addEventListener("submit", async (event) => {
   const changeSummaryInput = getTextFieldValue("changeSummary");
 
   if (badgeTemplateId.length === 0 || lmsConnectionId.length === 0) {
-    setStatus(
-      ruleCreateStatus,
-      "Badge template and LMS connection are required.",
-      true,
-    );
+    setStatus(ruleCreateStatus, "Badge template and LMS connection are required.", true);
     syncRuleBuilderSummary("Badge template and LMS connection are required.");
     return;
   }
@@ -361,14 +357,17 @@ ruleCreateForm.addEventListener("submit", async (event) => {
     changeSummary = changeSummary + " Issuance timing: " + issuanceLabel + ".";
   }
 
+  if (definition.options.renewal) {
+    changeSummary +=
+      " Renewal due " + definition.options.renewal.intervalMonths + " months after each award.";
+  }
+
   const builderDraftId =
-    ruleBuilderContext &&
-    typeof ruleBuilderContext.builderDraftId === "string"
+    ruleBuilderContext && typeof ruleBuilderContext.builderDraftId === "string"
       ? ruleBuilderContext.builderDraftId
       : "";
   const authoringResultApiPath =
-    ruleBuilderContext &&
-    typeof ruleBuilderContext.badgeRuleAuthoringResultApiPath === "string"
+    ruleBuilderContext && typeof ruleBuilderContext.badgeRuleAuthoringResultApiPath === "string"
       ? ruleBuilderContext.badgeRuleAuthoringResultApiPath
       : "";
   const delivery =

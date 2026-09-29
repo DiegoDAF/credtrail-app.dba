@@ -85,6 +85,8 @@ const sampleAssertion = (): AssertionRecord => {
     learnerProfileId: "lpr_123",
     badgeTemplateId: "badge_template_001",
     achievementSnapshotStatus: "captured",
+    validUntil: null,
+    renewalOfAssertionId: null,
     achievementSnapshot: {
       badgeTemplateId: "badge_template_001",
       title: "TypeScript Foundations",

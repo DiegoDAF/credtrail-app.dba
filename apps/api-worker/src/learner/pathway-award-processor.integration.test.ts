@@ -9,6 +9,8 @@ import {
   listLearnerPathwayProgress,
   publishLearnerPathway,
   recordAssertionRevocation,
+  recordAssertionLifecycleTransition,
+  listIssuedBadgeTemplateIdsForRecipient,
 } from "@credtrail/db";
 import { parseQueueJob } from "@credtrail/validation";
 import {
@@ -191,49 +193,74 @@ const createScenario = async () => {
 };
 
 describeDbIntegration("automatic first-year pathway awards", () => {
-  it("refuses to finalize when training evidence is revoked during issuance", async () => {
-    const scenario = await createScenario();
-    try {
-      const assertions = await Promise.all(
-        scenario.requiredBadges.map((badge) => scenario.awardTraining(badge.badgeTemplateId)),
-      );
-      await scenario.evaluate();
-      const job = (await scenario.jobs())[0];
-      const revokedId = assertions[0];
-      if (job === undefined || revokedId === undefined)
-        throw new Error("Expected completed scenario");
-      await expect(
-        processLearnerPathwayAward({
-          db: scenario.db,
-          tenantId: scenario.tenantId,
-          ...job.payload,
-          issueBadge: async (request) => {
-            await recordAssertionRevocation(scenario.db, {
-              tenantId: scenario.tenantId,
-              assertionId: revokedId,
-              revocationId: uniqueTestId("rev"),
-              idempotencyKey: uniqueTestId("revkey"),
-              reason: "Evidence changed while signing",
-              revokedAt: new Date().toISOString(),
-            });
-            const result = await scenario.issueBadge(request);
-            expect(result.status).toBe("learner_pathway_handoff_conflict");
-            throw new Error("Issuance rejected after evidence changed");
-          },
-        }),
-      ).rejects.toThrow("Issuance rejected after evidence changed");
-      expect((await scenario.progress())[0]?.state._tag).toBe("invalidated");
-      const count = await scenario.db
-        .prepare(
-          "SELECT COUNT(*)::int AS count FROM assertions WHERE tenant_id = ? AND badge_template_id = ?",
-        )
-        .bind(scenario.tenantId, scenario.finalBadgeTemplateId)
-        .first<{ count: number }>();
-      expect(count?.count).toBe(0);
-    } finally {
-      await scenario.dispose();
-    }
-  });
+  it.each(["revoked", "suspended", "expired", "validity_expired"] as const)(
+    "refuses to finalize when training evidence becomes %s during issuance",
+    async (state) => {
+      const scenario = await createScenario();
+      try {
+        const assertions = await Promise.all(
+          scenario.requiredBadges.map((badge) => scenario.awardTraining(badge.badgeTemplateId)),
+        );
+        await scenario.evaluate();
+        const job = (await scenario.jobs())[0];
+        const revokedId = assertions[0];
+        if (job === undefined || revokedId === undefined)
+          throw new Error("Expected completed scenario");
+        await expect(
+          processLearnerPathwayAward({
+            db: scenario.db,
+            tenantId: scenario.tenantId,
+            ...job.payload,
+            issueBadge: async (request) => {
+              if (state === "validity_expired") {
+                await scenario.db
+                  .prepare(
+                    "UPDATE assertions SET issued_at = ?, valid_until = ? WHERE tenant_id = ? AND id = ?",
+                  )
+                  .bind(
+                    "2020-01-01T00:00:00.000Z",
+                    "2021-01-01T00:00:00.000Z",
+                    scenario.tenantId,
+                    revokedId,
+                  )
+                  .run();
+              } else {
+                await recordAssertionLifecycleTransition(scenario.db, {
+                  tenantId: scenario.tenantId,
+                  assertionId: revokedId,
+                  toState: state,
+                  reasonCode: "issuer_requested",
+                  transitionSource: "manual",
+                  actorUserId: scenario.userId,
+                  transitionedAt: new Date().toISOString(),
+                });
+              }
+              expect(
+                await listIssuedBadgeTemplateIdsForRecipient(scenario.db, {
+                  tenantId: scenario.tenantId,
+                  recipientIdentity: scenario.learnerEmail.toUpperCase(),
+                  recipientIdentityType: "email",
+                }),
+              ).toHaveLength(2);
+              const result = await scenario.issueBadge(request);
+              expect(result.status).toBe("learner_pathway_handoff_conflict");
+              throw new Error("Issuance rejected after evidence changed");
+            },
+          }),
+        ).rejects.toThrow("Issuance rejected after evidence changed");
+        expect((await scenario.progress())[0]?.state._tag).toBe("invalidated");
+        const count = await scenario.db
+          .prepare(
+            "SELECT COUNT(*)::int AS count FROM assertions WHERE tenant_id = ? AND badge_template_id = ?",
+          )
+          .bind(scenario.tenantId, scenario.finalBadgeTemplateId)
+          .first<{ count: number }>();
+        expect(count?.count).toBe(0);
+      } finally {
+        await scenario.dispose();
+      }
+    },
+  );
   it("requires all three trainings, awards once, and shows the badge to the seminar instructor", async () => {
     const scenario = await createScenario();
     try {

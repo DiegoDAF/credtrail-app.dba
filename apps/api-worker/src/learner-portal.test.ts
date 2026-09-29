@@ -209,6 +209,8 @@ const sampleLearnerBadge = (
   overrides?: Partial<LearnerBadgeSummaryRecord>,
 ): LearnerBadgeSummaryRecord => {
   return {
+    validUntil: null,
+    lifecycleState: overrides?.revokedAt ? "revoked" : "active",
     assertionId: "tenant_123:assertion_456",
     assertionPublicId: "40a6dc92-85ec-4cb0-8a50-afb2ae700e22",
     tenantId: "tenant_123",
@@ -482,7 +484,7 @@ describe("GET /tenants/:tenantId/learner/dashboard", () => {
     expect(body).toContain("/badges/public_assertion_999");
     expect(body).toContain("View public badge");
     expect(body).toContain("Claim badge and open sharing options");
-    expect(body).toContain("Verified");
+    expect(body).toContain("Current");
     expect(body).toContain("Revoked");
     expect(body).toContain("Profile settings");
     expect(body).toContain("Manage learner DID");

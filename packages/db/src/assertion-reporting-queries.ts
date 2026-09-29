@@ -1,3 +1,7 @@
+import {
+  effectiveAssertionLifecycleStateSql as EFFECTIVE_LIFECYCLE_STATE_SQL,
+  latestAssertionLifecycleJoinSql as LATEST_LIFECYCLE_JOIN_SQL,
+} from "./assertion-lifecycle-sql.js";
 import { listTenantOrgUnits } from "./tenant-org-units";
 import type { SqlDatabase, SqlQueryResult } from "./tenant-scope";
 import type {
@@ -79,27 +83,6 @@ interface ReportingFilterInput {
   readonly orgUnitId?: string | undefined;
   readonly state?: TenantReportingLifecycleFilter | undefined;
 }
-
-const EFFECTIVE_LIFECYCLE_STATE_SQL = `
-          CASE
-            WHEN assertions.revoked_at IS NOT NULL THEN 'revoked'
-            WHEN lifecycle.to_state IS NOT NULL THEN lifecycle.to_state
-            ELSE 'active'
-          END`;
-
-const LATEST_LIFECYCLE_JOIN_SQL = `
-        LEFT JOIN assertion_lifecycle_events lifecycle
-          ON lifecycle.id = (
-            SELECT latest_event.id
-            FROM assertion_lifecycle_events latest_event
-            WHERE latest_event.tenant_id = assertions.tenant_id
-              AND latest_event.assertion_id = assertions.id
-            ORDER BY
-              latest_event.transitioned_at DESC,
-              latest_event.created_at DESC,
-              latest_event.id DESC
-            LIMIT 1
-          )`;
 
 const REPORTING_AGGREGATE_SELECT_SQL = `
           COUNT(DISTINCT filtered_assertions.assertion_id) AS issuedCount,

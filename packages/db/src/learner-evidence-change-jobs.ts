@@ -5,6 +5,7 @@ import type { SqlDatabase } from "./tenant-scope.js";
 export type LearnerEvidenceChangeTrigger =
   | "assertion_issued"
   | "assertion_revoked"
+  | "assertion_status_changed"
   | "learner_record_created"
   | "learner_record_revised";
 
@@ -17,6 +18,7 @@ export const enqueueLearnerEvidenceChange = async (
     readonly trigger: LearnerEvidenceChangeTrigger;
     readonly evidenceEventId: string;
     readonly requestedAt: string;
+    readonly availableAt?: string | undefined;
   },
 ): Promise<boolean> => {
   return enqueueJobQueueMessageOnce(db, {
@@ -29,5 +31,6 @@ export const enqueueLearnerEvidenceChange = async (
     },
     idempotencyKey: `${input.trigger}:${input.evidenceEventId}`,
     nowIso: input.requestedAt,
+    availableAt: input.availableAt,
   });
 };
