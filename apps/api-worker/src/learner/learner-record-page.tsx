@@ -52,6 +52,7 @@ const pathwayRequirementLabel = (state: LearnerPathwayRequirementState): string 
 type LearnerPathwayProgressStateTag = LearnerPathwayProgressState["_tag"];
 
 const pathwayResultLabels = {
+  issuing: "Issuing badge",
   complete: "Complete",
   eligible: "Approved for issuance",
   issued: "Credential issued",
@@ -61,6 +62,7 @@ const pathwayResultLabels = {
 } satisfies Record<LearnerPathwayProgressStateTag, string>;
 
 const completedPathwayMessages = {
+  issuing: "Every requirement is complete. Your final badge is being issued automatically.",
   issued: "Every requirement is satisfied and the final credential is issued.",
   eligible: "Every requirement is satisfied and the issuance review is approved.",
   needs_review: "Next: an administrator reviews the final credential decision.",

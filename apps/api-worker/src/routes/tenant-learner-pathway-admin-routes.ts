@@ -235,11 +235,14 @@ const parsePathwayForm = (
   form: URLSearchParams,
   badgeTemplates: readonly BadgeTemplateRecord[],
 ): ReturnType<typeof parseCreateLearnerPathwayRequest> => {
-  const requirements = form
-    .getAll("requirement")
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0)
-    .map((value) => requirementFromSelection(value, badgeTemplates));
+  const guidance = form.getAll("requirementGuidance");
+  const requirements = form.getAll("requirement").flatMap((value, index) => {
+    const selection = value.trim();
+    if (selection.length === 0) return [];
+    const requirement = requirementFromSelection(selection, badgeTemplates);
+    const description = guidance[index]?.trim() ?? "";
+    return [{ ...requirement, ...(description.length === 0 ? {} : { description }) }];
+  });
   const finalBadgeTemplateId = form.get("finalBadgeTemplateId")?.trim() ?? "";
 
   return parseCreateLearnerPathwayRequest({

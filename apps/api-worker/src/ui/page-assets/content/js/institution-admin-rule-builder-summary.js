@@ -210,16 +210,22 @@ const syncRuleBuilderDescription = () => {
   const ruleName = getTextFieldValue("name");
   let requirementDescription = "Add awarding requirements";
   try {
-    const definition = ruleBuilderDefinitionAuthority === "visual"
-      ? readDefinitionFromBuilder(false)
-      : JSON.parse(ruleBuilderDefinitionJson.value);
+    const definition =
+      ruleBuilderDefinitionAuthority === "visual"
+        ? readDefinitionFromBuilder(false)
+        : JSON.parse(ruleBuilderDefinitionJson.value);
     const assignments = getConditionCards().flatMap((card) => {
       const courseId = readFieldFromCard(card, "courseId");
       const assignmentId = readFieldFromCard(card, "assignmentId");
-      const title = lmsGradebookItemTitleByIdentity.get(lmsGradebookItemIdentity(gradebookItemsPath(courseId), assignmentId));
+      const title = lmsGradebookItemTitleByIdentity.get(
+        lmsGradebookItemIdentity(gradebookItemsPath(courseId), assignmentId),
+      );
       return typeof title === "string" ? [{ courseId, assignmentId, title }] : [];
     });
-    requirementDescription = describeBadgeRuleCondition(definition.conditions, { courses: [], assignments });
+    requirementDescription = describeBadgeRuleCondition(definition.conditions, {
+      courses: [],
+      assignments,
+    });
   } catch {
     requirementDescription = "Complete the awarding requirements";
   }
@@ -232,6 +238,34 @@ const syncRuleBuilderDescription = () => {
 };
 
 const syncRuleBuilderSummary = (statusOverride) => {
+  const confirmation = currentInstructorConfirmationRequirement();
+  const evidenceTest = document.getElementById("rule-builder-evidence-test");
+  const confirmationReview = document.getElementById("rule-builder-confirmation-review");
+  if (evidenceTest instanceof HTMLElement) evidenceTest.hidden = confirmation !== null;
+  if (confirmationReview instanceof HTMLElement) confirmationReview.hidden = confirmation === null;
+  const timingField = getRuleCreateField("issuanceTiming");
+  if (timingField instanceof HTMLSelectElement) {
+    timingField.disabled = confirmation !== null;
+    if (confirmation !== null) timingField.value = "manual";
+  }
+  if (confirmation !== null) ruleBuilderLastTestSummary = "Instructor confirmation required";
+  ruleBuilderStepLabels.test = confirmation === null ? "Test and submit" : "Review and submit";
+  ruleBuilderStepCallouts.test =
+    confirmation === null
+      ? "Test the rule, then submit it for approval or save it as a rule draft. To revise earlier steps, select a step label above."
+      : "Review the requirement, then submit it for approval or save it as a rule draft.";
+  const reviewStep = document.querySelector('[data-rule-step-target="test"]');
+  const reviewTitle = reviewStep?.querySelector("strong");
+  const reviewDescription = reviewStep?.querySelector("small");
+  if (reviewTitle instanceof HTMLElement) reviewTitle.textContent = ruleBuilderStepLabels.test;
+  if (reviewDescription instanceof HTMLElement)
+    reviewDescription.textContent =
+      confirmation === null
+        ? "Check the rule with a learner, then submit it."
+        : "Review what instructors must confirm, then submit it.";
+  const testHint = document.getElementById("rule-builder-test-hint");
+  if (testHint instanceof HTMLElement) testHint.hidden = confirmation !== null;
+
   renderRuleFlowPreview();
   renderSourceReadiness();
   const workflow = parsedContext.workflowByTemplateId?.[getTextFieldValue("badgeTemplateId")];
@@ -241,20 +275,31 @@ const syncRuleBuilderSummary = (statusOverride) => {
   };
   setWorkflowText("builder-badge-owner", workflow?.badgeOwner ?? "Choose a badge first.");
   setWorkflowText("builder-rule-author", workflow?.ruleAuthor ?? "Choose a badge first.");
-  setWorkflowText("builder-rule-approval", workflow?.approval.label ?? "Choose a badge to see its approval policy.");
+  setWorkflowText(
+    "builder-rule-approval",
+    workflow?.approval.label ?? "Choose a badge to see its approval policy.",
+  );
   setWorkflowText("builder-rule-approval-detail", workflow?.approval.detail ?? "");
   let awarding;
   try {
-    const timing = ruleBuilderDefinitionAuthority === "visual"
-      ? getTextFieldValue("issuanceTiming") || "immediate"
-      : parseDefinitionJson().options?.issuanceTiming ?? "immediate";
+    const timing =
+      ruleBuilderDefinitionAuthority === "visual"
+        ? getTextFieldValue("issuanceTiming") || "immediate"
+        : (parseDefinitionJson().options?.issuanceTiming ?? "immediate");
     awarding = parsedContext.awardingByTiming?.[timing];
   } catch {
     awarding = undefined;
   }
   setWorkflowText("builder-rule-awarding", awarding?.awarding ?? "Check awarding settings");
-  setWorkflowText("builder-issuance-timing-hint", awarding?.awardingDetail ?? "Choose how eligible learners receive this badge.");
-  setWorkflowText("builder-rule-awarding-detail", awarding?.awardingDetail ?? "Complete or repair the requirements to confirm how this badge will be awarded.");
+  setWorkflowText(
+    "builder-issuance-timing-hint",
+    awarding?.awardingDetail ?? "Choose how eligible learners receive this badge.",
+  );
+  setWorkflowText(
+    "builder-rule-awarding-detail",
+    awarding?.awardingDetail ??
+      "Complete or repair the requirements to confirm how this badge will be awarded.",
+  );
   ruleBuilderExampleTestController.sync(readConditionsForPreview());
 
   const cardCount = getConditionCards().length;
@@ -414,6 +459,8 @@ const classifyRuleBuilderStarterPreset = (definition) => {
   }
 
   const conditions = definition.conditions.all;
+  if (instructorConfirmationRequirement(definition.conditions) !== null)
+    return "instructor_confirmation";
   const leafMatches = (index, type, allowedKeys) =>
     exactRuleBuilderLeafShape(conditions[index], type, allowedKeys);
 
@@ -427,12 +474,7 @@ const classifyRuleBuilderStarterPreset = (definition) => {
   if (
     conditions.length === 2 &&
     leafMatches(0, "course_completion", ["courseId", "minCompletionPercent"]) &&
-    leafMatches(1, "grade_threshold", [
-      "courseId",
-      "scoreField",
-      "minScore",
-      "maxScore",
-    ]) &&
+    leafMatches(1, "grade_threshold", ["courseId", "scoreField", "minScore", "maxScore"]) &&
     conditions[0].courseId === conditions[1].courseId
   ) {
     return "course_and_grade";

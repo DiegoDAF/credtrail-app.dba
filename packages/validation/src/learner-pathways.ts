@@ -24,7 +24,12 @@ export const createLearnerPathwayRequestSchema = z
     ownerOrgUnitId: resourceIdSchema,
     title: pathwayTextSchema,
     learnerDescription: z.string().trim().min(1).max(4000),
-    completionBehavior: z.enum(["mark_complete", "credential_eligible", "review_required"]),
+    completionBehavior: z.enum([
+      "mark_complete",
+      "issue_credential",
+      "credential_eligible",
+      "review_required",
+    ]),
     finalBadgeTemplateId: resourceIdSchema.optional(),
     requirements: z.array(learnerPathwayRequirementSchema).min(1).max(50),
   })

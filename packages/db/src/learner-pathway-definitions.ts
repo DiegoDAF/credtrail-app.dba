@@ -1,4 +1,5 @@
 import { createAuditLog } from "./audit-logs.js";
+import { resolveManagedBadgeTemplateImageReference } from "@credtrail/validation";
 import { findBadgeTemplateById } from "./badge-templates.js";
 import { LearnerPathwayCommandError } from "./learner-pathway-errors.js";
 import type {
@@ -77,6 +78,7 @@ const assertPathwayReferencesAvailable = async (
   input: {
     tenantId: string;
     ownerOrgUnitId: string;
+    completionBehavior: LearnerPathwayCompletionBehavior;
     finalBadgeTemplateId?: string | undefined;
     requirements: readonly LearnerPathwayRequirementInput[];
   },
@@ -127,6 +129,24 @@ const assertPathwayReferencesAvailable = async (
       "invalid",
       "Pathway credentials must use active badge templates from this organization",
     );
+  }
+  if (input.completionBehavior === "issue_credential") {
+    const finalTemplate = templates.find((template) => template?.id === input.finalBadgeTemplateId);
+    if (
+      finalTemplate === undefined ||
+      finalTemplate === null ||
+      finalTemplate.imageUri === null ||
+      resolveManagedBadgeTemplateImageReference({
+        tenantId: input.tenantId,
+        badgeTemplateId: finalTemplate.id,
+        imageUri: finalTemplate.imageUri,
+      }) === null
+    ) {
+      throw new LearnerPathwayCommandError(
+        "not_ready",
+        "Add artwork to the final badge before enabling automatic awards",
+      );
+    }
   }
 };
 
@@ -544,6 +564,7 @@ export const publishLearnerPathway = async (
   await assertPathwayReferencesAvailable(db, {
     tenantId: input.tenantId,
     ownerOrgUnitId: pathway.ownerOrgUnitId,
+    completionBehavior: pathway.version.completionBehavior,
     ...(pathway.version.finalBadgeTemplateId === null
       ? {}
       : { finalBadgeTemplateId: pathway.version.finalBadgeTemplateId }),

@@ -268,13 +268,7 @@ const renderGradeThresholdFields = (card, fieldsContainer, seed, courseLabelForI
 const renderProgramCompletionFields = (card, fieldsContainer, seed, courseLabelForId) => {
   const selectedCourseIds = Array.isArray(seed.courseIds) ? seed.courseIds.join(",") : "";
   replaceConditionFields(fieldsContainer, [
-    ...createCoursePickerFields(
-      "Courses",
-      "courseIds",
-      selectedCourseIds,
-      true,
-      courseLabelForId,
-    ),
+    ...createCoursePickerFields("Courses", "courseIds", selectedCourseIds, true, courseLabelForId),
     createConditionField(
       "Minimum completed (optional)",
       createConditionInput("number", {
@@ -509,7 +503,25 @@ const renderPrerequisiteBadgeFields = (card, fieldsContainer, seed) => {
   updateConditionPlainSummary(card);
 };
 
+const renderInstructorConfirmationFields = (card, fieldsContainer, seed) => {
+  const instructions = document.createElement("textarea");
+  instructions.dataset.field = "instructions";
+  instructions.rows = 4;
+  instructions.maxLength = 2000;
+  instructions.required = true;
+  instructions.value = typeof seed.instructions === "string" ? seed.instructions : "";
+  const hint = document.createElement("p");
+  hint.className = "ct-admin__hint";
+  hint.textContent =
+    "No course selection is needed. After approval, use Course availability to offer this same rule across the institution or an organizational area.";
+  replaceConditionFields(fieldsContainer, [
+    createConditionField("What must the instructor confirm?", instructions),
+    hint,
+  ]);
+};
+
 const conditionFieldRenderers = {
+  instructor_confirmation: renderInstructorConfirmationFields,
   course_completion: renderCourseCompletionFields,
   grade_threshold: renderGradeThresholdFields,
   program_completion: renderProgramCompletionFields,

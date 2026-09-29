@@ -24,6 +24,7 @@ import {
 import { applyLearnerRecordImportQueuePayload } from "../learner-record/learner-record-import-queue";
 import type { DirectIssueBadgeRequest } from "../badges/recipient-identifiers";
 import { GradebookProviderError } from "../lms/gradebook-provider-error";
+import { processLearnerPathwayAward } from "../learner/pathway-award-processor";
 
 const DEFAULT_JOB_PROCESS_LIMIT = 10;
 const DEFAULT_JOB_PROCESS_LEASE_SECONDS = 300;
@@ -142,6 +143,17 @@ const processQueuedJob = async <TBindings, TContext extends { env: TBindings }>(
   dependencies: ProcessQueuedJobsDependencies<TBindings, TContext>,
 ): Promise<void> => {
   switch (job.jobType) {
+    case "issue_learner_pathway_badge": {
+      const result = await processLearnerPathwayAward({
+        db: dependencies.resolveDatabase(c.env),
+        tenantId: job.tenantId,
+        ...job.payload,
+        issueBadge: (request) => dependencies.issueBadgeForTenant(c, job.tenantId, request),
+      });
+      // The queue boundary translates recoverable domain failures into durable retries.
+      if (result.status === "blocked") throw new Error(`Pathway award blocked: ${result.reason}`);
+      return;
+    }
     case "issue_badge": {
       const requestBase = {
         recipientIdentity: job.payload.recipientIdentity,

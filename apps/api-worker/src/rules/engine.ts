@@ -153,6 +153,7 @@ export const extractBadgeIssuanceRuleRequirements = (
           prerequisiteBadgeTemplateIds.add(condition.badgeTemplateId);
         }
         return;
+      case "instructor_confirmation":
       case "time_window":
         return;
     }
@@ -223,6 +224,13 @@ const evaluatePredicate = (
   facts: BadgeIssuanceRuleEvaluationFacts,
 ): BadgeIssuanceRuleEvaluationNode => {
   switch (condition.type) {
+    case "instructor_confirmation":
+      return {
+        type: condition.type,
+        matched: false,
+        detail: "An instructor must confirm completion from an authorized course roster.",
+        resultKind: "missing_data",
+      };
     case "grade_threshold": {
       const courseId = condition.courseId ?? "unknown course";
       const grade = facts.grades.find(

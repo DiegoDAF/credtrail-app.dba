@@ -27,6 +27,8 @@ export const describeBadgeRuleCondition = (
       ? `Exclude: ${describeBadgeRuleCondition(condition.not, labels)}`
       : "Exclude learners who match the grouped requirements";
   switch (condition.type) {
+    case "instructor_confirmation":
+      return `Instructor confirms: ${condition.instructions}`;
     case "course_completion":
       return condition.minCompletionPercent === 100
         ? "Complete all gradebook items"

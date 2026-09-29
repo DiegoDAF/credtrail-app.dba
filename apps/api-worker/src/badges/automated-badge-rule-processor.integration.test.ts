@@ -171,7 +171,7 @@ describeDbIntegration("processAutomatedBadgeRule", () => {
       expect(queuedIssuancePayload).not.toHaveProperty("badgeTemplateId");
       expect(queuedIssuancePayload).not.toHaveProperty("achievementSnapshot");
       expect(queuedIssuancePayload).not.toHaveProperty("recipientIdentifiers");
-      expect(queuedIssuance?.idempotencyKey).toMatch(/^rule-evaluate:[0-9a-f]{64}$/);
+      expect(queuedIssuance?.idempotencyKey).toMatch(/^badge-award:[0-9a-f]{64}$/);
       expect(() =>
         parseQueueJob({
           jobType: "issue_badge",

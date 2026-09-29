@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { findBadgeTemplateById } from "@credtrail/db";
 import type { AppContext } from "../app/types";
 import type { ResolveDatabase } from "../app/route-deps";
@@ -8,11 +9,7 @@ import { asNonEmptyString } from "../utils/value-parsers";
 import { createCredTrailLtiTool } from "./credtrail-lti-tool";
 import { verifyLtiIssuanceActionToken } from "./issuance-action-token";
 import { ltiRosterIssuanceResultPage } from "./pages";
-import {
-  executeLtiRosterIssuance,
-  LtiRosterIssuanceError,
-  type ExecuteLtiRosterIssuanceResult,
-} from "./roster-issuance";
+import { executeLtiRosterIssuance } from "./roster-issuance";
 import {
   ltiSessionMatchesIssuanceAction,
   selectedLearnerUserIdsFromForm,
@@ -104,6 +101,18 @@ export const handleLtiResourceLinkIssue = async (
     );
   }
 
+  const confirmation = z.literal("confirmed").safeParse(form.get("completion_confirmation"));
+  if (!confirmation.success)
+    return c.json(
+      {
+        error:
+          "Confirm that the selected learners completed the badge requirements before issuing.",
+      },
+      400,
+    );
+  if (selectedLearnerUserIds.length === 0)
+    return c.json({ error: "Select at least one learner." }, 400);
+
   const badgeTemplate = await findBadgeTemplateById(
     db,
     issuanceAction.tenantId,
@@ -119,31 +128,22 @@ export const handleLtiResourceLinkIssue = async (
     );
   }
 
-  let issuanceResult: ExecuteLtiRosterIssuanceResult;
-
-  try {
-    issuanceResult = await executeLtiRosterIssuance({
-      c,
-      db,
-      ltiTool,
-      ltiSession,
-      issuanceAction,
-      selectedLearnerUserIds,
-      sha256Hex,
-      issueBadgeForTenant,
-    });
-  } catch (error: unknown) {
-    if (error instanceof LtiRosterIssuanceError) {
-      return c.json(
-        {
-          error: error.message,
-        },
-        error.status,
-      );
-    }
-
-    throw error;
+  const outcome = await executeLtiRosterIssuance({
+    c,
+    db,
+    ltiTool,
+    ltiSession,
+    issuanceAction,
+    selectedLearnerUserIds,
+    sha256Hex,
+    issueBadgeForTenant,
+  });
+  if (outcome.status !== "completed") {
+    const status =
+      outcome.status === "denied" ? 403 : outcome.status === "rule_changed" ? 409 : 502;
+    return c.json({ error: outcome.detail }, status);
   }
+  const issuanceResult = outcome.summary;
 
   c.header("Cache-Control", "no-store");
   return renderAppPage(

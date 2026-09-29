@@ -1,3 +1,4 @@
+import { instructorConfirmationEligibility } from "./instructor-confirmation";
 import {
   findActiveBadgeIssuanceRuleVersion,
   findBadgeIssuanceRuleById,
@@ -308,6 +309,7 @@ const evaluateLtiRosterMemberEligibilityWithPreparedContext = async (input: {
   member: LtiNrpsMember;
   issuedState: LtiRosterIssuedBadgeStateForEligibility | null;
   nowIso: string;
+  confirmedByUserId?: string | undefined;
   prepared: LtiRosterEligibilityPreparedEvaluation;
 }): Promise<LtiRosterEligibilityResult> => {
   const earlyResult = memberEligibilityBeforeRuleEvaluation({
@@ -323,6 +325,14 @@ const evaluateLtiRosterMemberEligibilityWithPreparedContext = async (input: {
   if (input.prepared.status !== "ready" || !ltiNrpsMemberWithEmail(input.member)) {
     return statusResult("rule_pending", LTI_ROSTER_NO_RULE_LINKED_DETAIL, false);
   }
+
+  const confirmation = instructorConfirmationEligibility({
+    prepared: input.prepared,
+    learnerId: input.member.userId,
+    nowIso: input.nowIso,
+    confirmedByUserId: input.confirmedByUserId,
+  });
+  if (confirmation !== null) return confirmation;
 
   const result = await evaluateBadgeRuleLearner({
     db: input.db,
@@ -384,6 +394,7 @@ export const evaluateLtiRosterMembersEligibility = async (input: {
   members: readonly LtiNrpsMember[];
   issuedStatesByUserId: ReadonlyMap<string, LtiRosterIssuedBadgeStateForEligibility>;
   nowIso: string;
+  confirmedByUserId?: string | undefined;
   prepared?: LtiRosterEligibilityPreparedEvaluation | null;
 }): Promise<Map<string, LtiRosterEligibilityResult>> => {
   if (input.ruleResolution.status !== "resolved") {
@@ -416,6 +427,7 @@ export const evaluateLtiRosterMembersEligibility = async (input: {
     members: input.members,
     issuedStatesByUserId: input.issuedStatesByUserId,
     nowIso: input.nowIso,
+    confirmedByUserId: input.confirmedByUserId,
   });
 };
 
@@ -423,6 +435,7 @@ const evaluateLtiRosterMembersEligibilityWithPreparedContext = async (input: {
   db: SqlDatabase;
   tenantId: string;
   prepared: LtiRosterEligibilityPreparedEvaluation;
+  confirmedByUserId?: string | undefined;
   members: readonly LtiNrpsMember[];
   issuedStatesByUserId: ReadonlyMap<string, LtiRosterIssuedBadgeStateForEligibility>;
   nowIso: string;
@@ -437,6 +450,7 @@ const evaluateLtiRosterMembersEligibilityWithPreparedContext = async (input: {
         member,
         issuedState: input.issuedStatesByUserId.get(member.userId) ?? null,
         nowIso: input.nowIso,
+        confirmedByUserId: input.confirmedByUserId,
         prepared: input.prepared,
       });
 

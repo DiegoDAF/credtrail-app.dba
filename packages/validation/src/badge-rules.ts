@@ -175,6 +175,11 @@ const badgeIssuanceRuleCustomFieldConditionSchema = z.object({
   expectedValue: badgeIssuanceRuleCustomFieldValueSchema,
 });
 
+const badgeIssuanceRuleInstructorConfirmationConditionSchema = z.strictObject({
+  type: z.literal("instructor_confirmation"),
+  instructions: z.string().trim().min(1).max(2000),
+});
+
 export type BadgeIssuanceRuleCondition =
   | {
       all: BadgeIssuanceRuleCondition[];
@@ -192,7 +197,8 @@ export type BadgeIssuanceRuleCondition =
   | z.infer<typeof badgeIssuanceRuleSurveyCompletionConditionSchema>
   | z.infer<typeof badgeIssuanceRuleTimeWindowConditionSchema>
   | z.infer<typeof badgeIssuanceRulePrerequisiteBadgeConditionSchema>
-  | z.infer<typeof badgeIssuanceRuleCustomFieldConditionSchema>;
+  | z.infer<typeof badgeIssuanceRuleCustomFieldConditionSchema>
+  | z.infer<typeof badgeIssuanceRuleInstructorConfirmationConditionSchema>;
 
 export const badgeIssuanceRuleConditionSchema: z.ZodType<BadgeIssuanceRuleCondition> = z.lazy(() =>
   z.union([
@@ -213,6 +219,7 @@ export const badgeIssuanceRuleConditionSchema: z.ZodType<BadgeIssuanceRuleCondit
     badgeIssuanceRuleTimeWindowConditionSchema,
     badgeIssuanceRulePrerequisiteBadgeConditionSchema,
     badgeIssuanceRuleCustomFieldConditionSchema,
+    badgeIssuanceRuleInstructorConfirmationConditionSchema,
   ]),
 );
 
@@ -221,19 +228,58 @@ export const badgeIssuanceRuleDefinitionOptionsSchema = z.object({
   reviewOnMissingFacts: z.boolean().optional(),
 });
 
-export const badgeIssuanceRuleDefinitionSchema = z.object({
-  customLabel: z.string().trim().min(1).max(200).optional(),
-  referenceLabels: z
-    .object({
-      courses: z.array(z.object({ courseId: z.string(), title: z.string() })).max(200),
-      assignments: z
-        .array(z.object({ courseId: z.string(), assignmentId: z.string(), title: z.string() }))
-        .max(2500),
-    })
-    .optional(),
-  conditions: badgeIssuanceRuleConditionSchema,
-  options: badgeIssuanceRuleDefinitionOptionsSchema.optional(),
-});
+/** Returns the single instructor-confirmed requirement, without an LMS course binding. */
+export const badgeRuleInstructorConfirmation = (
+  condition: BadgeIssuanceRuleCondition,
+): z.infer<typeof badgeIssuanceRuleInstructorConfirmationConditionSchema> | null => {
+  if ("type" in condition) {
+    return condition.type === "instructor_confirmation" ? condition : null;
+  }
+  if ("all" in condition && condition.all.length === 1 && condition.all[0] !== undefined) {
+    return badgeRuleInstructorConfirmation(condition.all[0]);
+  }
+  return null;
+};
+
+const containsInstructorConfirmation = (condition: BadgeIssuanceRuleCondition): boolean => {
+  if ("all" in condition) return condition.all.some(containsInstructorConfirmation);
+  if ("any" in condition) return condition.any.some(containsInstructorConfirmation);
+  if ("not" in condition) return containsInstructorConfirmation(condition.not);
+  return condition.type === "instructor_confirmation";
+};
+
+export const badgeIssuanceRuleDefinitionSchema = z
+  .object({
+    customLabel: z.string().trim().min(1).max(200).optional(),
+    referenceLabels: z
+      .object({
+        courses: z.array(z.object({ courseId: z.string(), title: z.string() })).max(200),
+        assignments: z
+          .array(z.object({ courseId: z.string(), assignmentId: z.string(), title: z.string() }))
+          .max(2500),
+      })
+      .optional(),
+    conditions: badgeIssuanceRuleConditionSchema,
+    options: badgeIssuanceRuleDefinitionOptionsSchema.optional(),
+  })
+  .superRefine((definition, context) => {
+    if (!containsInstructorConfirmation(definition.conditions)) return;
+    if (badgeRuleInstructorConfirmation(definition.conditions) === null) {
+      context.addIssue({
+        code: "custom",
+        path: ["conditions"],
+        message:
+          "Use instructor confirmation as the only requirement, without exclusions or alternative conditions.",
+      });
+    }
+    if (definition.options?.issuanceTiming !== "manual") {
+      context.addIssue({
+        code: "custom",
+        path: ["options", "issuanceTiming"],
+        message: "Instructor confirmation requires manual issuance.",
+      });
+    }
+  });
 
 const conditionHasCompleteLmsLearnerPopulation = (
   condition: BadgeIssuanceRuleCondition,
@@ -260,6 +306,7 @@ const conditionHasCompleteLmsLearnerPopulation = (
     case "time_window":
     case "prerequisite_badge":
     case "custom_field":
+    case "instructor_confirmation":
       return false;
   }
 };

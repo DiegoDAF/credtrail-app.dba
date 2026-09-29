@@ -253,7 +253,7 @@ describe("resolveInstructorBulkIssuanceView", () => {
   it("builds a ready roster view without an action token when manual issuance is disallowed", async () => {
     const resolveWithTestDependencies = createInstructorBulkIssuanceViewResolver({
       loadIssuedBadgeStatesByUserId: async (lookup) => {
-        expect(lookup.action.contextId).toBe(contextId);
+        expect(lookup.action.tenantId).toBe(tenantId);
         expect(lookup.learnerMembers.map((member) => member.userId)).toEqual(["learner-001"]);
         return new Map([
           [

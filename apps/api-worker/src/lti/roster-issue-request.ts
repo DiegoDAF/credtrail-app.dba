@@ -1,15 +1,13 @@
 import type { DirectIssueBadgeRequest } from "../badges/recipient-identifiers";
 import type { LtiNrpsMember } from "./nrps";
 import type { LtiRosterEligibilityResult } from "./roster-eligibility";
-import {
-  ltiIssuanceIdempotencyKeyFromPrefix,
-  type LtiIssuanceIdempotencyKeyPrefix,
-} from "./roster-issuance-helpers";
+import { badgeAwardIdempotencyKey } from "../badges/badge-award-identity";
 
 export const buildLtiRosterIssueBadgeRequest = async (input: {
   readonly member: LtiNrpsMember & { readonly email: string };
   readonly eligibility: LtiRosterEligibilityResult;
-  readonly idempotencyKeyPrefix: LtiIssuanceIdempotencyKeyPrefix;
+  readonly tenantId: string;
+  readonly badgeTemplateId: string;
   readonly sha256Hex: (value: string) => Promise<string>;
 }): Promise<DirectIssueBadgeRequest> => {
   if (input.eligibility.issuanceProvenance === undefined) {
@@ -32,11 +30,12 @@ export const buildLtiRosterIssueBadgeRequest = async (input: {
             },
           ],
         }),
-    idempotencyKey: await ltiIssuanceIdempotencyKeyFromPrefix(
-      input.sha256Hex,
-      input.idempotencyKeyPrefix,
-      input.member.userId,
-    ),
+    idempotencyKey: await badgeAwardIdempotencyKey({
+      tenantId: input.tenantId,
+      badgeTemplateId: input.badgeTemplateId,
+      recipientEmail: input.member.email,
+      sha256Hex: input.sha256Hex,
+    }),
     achievementSource: {
       kind: "rule_version",
       provenance: {

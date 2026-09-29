@@ -2,6 +2,27 @@ import { describe, expect, it } from "vitest";
 import { parseCreateLearnerPathwayRequest } from "./learner-pathways";
 
 describe("learner pathway validation", () => {
+  it("accepts automatic awards only with a separate final badge", () => {
+    const input = {
+      ownerOrgUnitId: "org_123",
+      title: "First-Year",
+      learnerDescription: "Complete three trainings.",
+      completionBehavior: "issue_credential",
+      requirements: ["Harassment", "AI", "Library"].map((title) => ({
+        requirementKind: "badge_template",
+        title,
+        badgeTemplateId: `badge_${title}`,
+      })),
+    };
+    expect(() => parseCreateLearnerPathwayRequest(input)).toThrow("Choose the final credential");
+    expect(
+      parseCreateLearnerPathwayRequest({ ...input, finalBadgeTemplateId: "badge_first_year" })
+        .completionBehavior,
+    ).toBe("issue_credential");
+    expect(() =>
+      parseCreateLearnerPathwayRequest({ ...input, finalBadgeTemplateId: "badge_AI" }),
+    ).toThrow("cannot also be a pathway requirement");
+  });
   it("requires a final credential only for credential-producing completion behaviors", () => {
     expect(() =>
       parseCreateLearnerPathwayRequest({

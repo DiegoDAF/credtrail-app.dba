@@ -14,7 +14,8 @@ export type JobQueueMessageType =
   | "process_badge_rule_lifecycle"
   | "process_automated_badge_rule"
   | "send_badge_rule_approval_notification"
-  | "process_learner_evidence_change";
+  | "process_learner_evidence_change"
+  | "issue_learner_pathway_badge";
 
 export type JobQueueMessageStatus = "pending" | "processing" | "completed" | "failed";
 

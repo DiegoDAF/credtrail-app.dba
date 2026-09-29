@@ -151,6 +151,7 @@
   --ct-stack-gap: var(--ct-space-4);
 }
 .ct-admin__builder-workbench-panel {
+  box-sizing: border-box;
   min-width: 0;
   width: 100%;
   --ct-stack-gap: var(--ct-space-4);

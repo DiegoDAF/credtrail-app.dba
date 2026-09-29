@@ -117,6 +117,20 @@ export const loadRuleFacts = async (
 
   const earnedBadgeTemplateIds = await loadEarnedBadgeTemplateIds(undefined);
 
+  // Credential-only requirements use institutional evidence and need no LMS connection.
+  if (requirements.courseIds.length === 0 && requirements.assignmentRefs.length === 0) {
+    return {
+      learnerId: input.learnerId,
+      nowIso: input.nowIso,
+      grades: [],
+      completions: [],
+      submissions: [],
+      surveyCompletions: [],
+      customFields: [],
+      earnedBadgeTemplateIds,
+    };
+  }
+
   const provider =
     input.gradebookProvider ??
     (await resolveGradebookProvider(

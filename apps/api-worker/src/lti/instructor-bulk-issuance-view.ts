@@ -189,7 +189,6 @@ const resolveInstructorBulkIssuanceViewWithDependencies = async (
       ? new Map<string, LtiRosterIssuedBadgeStateForEligibility>()
       : await dependencies.loadIssuedBadgeStatesByUserId({
           db: input.db,
-          sha256Hex: input.sha256Hex,
           action: rosterIssuanceLookupContext,
           learnerMembers: input.roster.learnerMembers,
         });
@@ -226,10 +225,16 @@ const resolveInstructorBulkIssuanceViewWithDependencies = async (
     eligibilityByUserId: bulkContext.eligibilityByUserId,
   });
 
-  if (issuanceActionInput !== null && bulkContext.issuanceBehavior.manualIssuanceAllowed) {
+  if (
+    issuanceActionInput !== null &&
+    bulkContext.issuanceBehavior.manualIssuanceAllowed &&
+    bulkContext.prepared?.status === "ready"
+  ) {
     bulkIssuanceView = ltiBulkIssuanceViewWithAction(bulkIssuanceView, {
       issuanceActionToken: await dependencies.createIssuanceActionToken(input.env, {
         ...issuanceActionInput,
+        ruleId: bulkContext.prepared.ruleId,
+        versionId: bulkContext.prepared.versionId,
         ttlSeconds: input.sessionHandoffTtlSeconds,
       }),
     });

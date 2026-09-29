@@ -37,6 +37,8 @@ const requirementSummary = (condition: BadgeIssuanceRuleCondition): string => {
   }
 
   switch (condition.type) {
+    case "instructor_confirmation":
+      return "Instructor confirms completion";
     case "grade_threshold": {
       if (condition.minScore !== undefined && condition.maxScore !== undefined) {
         return `Earn a course score from ${String(condition.minScore)}% to ${String(condition.maxScore)}%`;

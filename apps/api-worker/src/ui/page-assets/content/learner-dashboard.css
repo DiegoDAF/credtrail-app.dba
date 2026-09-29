@@ -338,7 +338,7 @@
 }
 
 .learner-dashboard__badge-card::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0 0 auto 0;
   height: 0.32rem;
@@ -473,4 +473,36 @@
   color: #577089;
   font-size: 0.87rem;
   overflow-wrap: anywhere;
+}
+.learner-dashboard__pathways {
+  overflow-wrap: anywhere;
+}
+.learner-dashboard__pathway {
+  padding-block: 1.5rem;
+  border-block-start: 1px solid var(--learner-line);
+}
+.learner-dashboard__pathway-requirements {
+  list-style: none;
+  padding: 0;
+}
+.learner-dashboard__pathway-requirements li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1.5rem;
+  padding-block: 0.75rem;
+}
+.learner-dashboard__pathway-requirements li > span {
+  flex-shrink: 0;
+  font-weight: 600;
+}
+.learner-dashboard__pathway-requirements p {
+  margin-block: 0.25rem 0;
+  max-width: 65ch;
+}
+@media (max-width: 40rem) {
+  .learner-dashboard__pathway-requirements li {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
 }

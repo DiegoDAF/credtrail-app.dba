@@ -142,6 +142,8 @@ export const createRuleDefinitionSummaryMarkup = (
     }
 
     switch (condition.type) {
+      case "instructor_confirmation":
+        return <li>Instructor confirms: {condition.instructions}</li>;
       case "grade_threshold": {
         const scoreField = condition.scoreField ?? "final_score";
         const range =
