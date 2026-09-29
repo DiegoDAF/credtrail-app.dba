@@ -1,4 +1,5 @@
 import { createAuditLog } from "./audit-logs";
+import { enqueueJobQueueMessageOnce } from "./job-queue.js";
 import { groupLearnerPathwayValues } from "./learner-pathway-collections.js";
 import {
   findLearnerPathwayById,
@@ -344,6 +345,22 @@ export const lockEligibleLearnerPathwayCompletionHandoff = async (
   db: SqlDatabase,
   input: LearnerPathwayFinalCredentialIssuanceTarget,
 ): Promise<boolean> => {
+  // Recheck automatic awards inside the finalization transaction. A queued award
+  // must not rely on evidence that was revoked while signing or waiting for delivery.
+  const automatic = await db
+    .prepare(`
+    SELECT enrollment_id AS enrollmentId FROM learner_pathway_completion_handoffs
+    WHERE tenant_id = ? AND id = ? AND behavior = 'issue_credential'
+  `)
+    .bind(input.tenantId, input.handoffId)
+    .first<{ enrollmentId: string }>();
+  if (automatic !== null) {
+    await evaluateLearnerPathwayEnrollmentInTransaction(db, {
+      tenantId: input.tenantId,
+      enrollmentId: automatic.enrollmentId,
+      trigger: "automatic_issuance",
+    });
+  }
   const handoff = await db
     .prepare(
       `SELECT handoffs.id
@@ -356,6 +373,7 @@ export const lockEligibleLearnerPathwayCompletionHandoff = async (
          AND enrollments.learner_profile_id = ?
          AND handoffs.badge_template_id = ?
          AND handoffs.status = 'eligible'
+         AND enrollments.status <> 'withdrawn'
        LIMIT 1
        FOR UPDATE OF handoffs`,
     )
@@ -702,10 +720,11 @@ const evaluateLearnerPathwayEnrollmentInTransaction = async (
     const handoffStatus =
       context.completionBehavior === "mark_complete"
         ? "recorded"
-        : context.completionBehavior === "credential_eligible"
+        : context.completionBehavior === "credential_eligible" ||
+            context.completionBehavior === "issue_credential"
           ? "eligible"
           : "review_pending";
-    await db
+    const handoff = await db
       .prepare(
         `INSERT INTO learner_pathway_completion_handoffs (
             id, tenant_id, enrollment_id, evaluation_id, behavior, badge_template_id, status, created_at
@@ -720,7 +739,8 @@ const evaluateLearnerPathwayEnrollmentInTransaction = async (
             resolved_at = NULL,
             issued_assertion_id = NULL,
             issued_at = NULL
-          WHERE learner_pathway_completion_handoffs.status <> 'issued'`,
+          WHERE learner_pathway_completion_handoffs.status <> 'issued'
+          RETURNING id`,
       )
       .bind(
         createPrefixedId("pthh"),
@@ -732,7 +752,20 @@ const evaluateLearnerPathwayEnrollmentInTransaction = async (
         handoffStatus,
         now,
       )
-      .run();
+      .first<{ id: string }>();
+    if (
+      handoff !== null &&
+      context.completionBehavior === "issue_credential" &&
+      context.enrollmentStatus !== "withdrawn"
+    ) {
+      await enqueueJobQueueMessageOnce(db, {
+        tenantId: input.tenantId,
+        jobType: "issue_learner_pathway_badge",
+        payload: { enrollmentId: input.enrollmentId, handoffId: handoff.id },
+        idempotencyKey: `pathway-award:${handoff.id}:${evaluationId}`,
+        nowIso: now,
+      });
+    }
   } else {
     await db
       .prepare(

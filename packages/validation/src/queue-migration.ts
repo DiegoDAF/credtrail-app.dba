@@ -378,7 +378,16 @@ export const processLearnerEvidenceChangeQueueJobSchema = z.strictObject({
   idempotencyKey: idempotencyKeySchema,
 });
 
+/** Internal durable command to award a completed pathway's final badge. */
+export const issueLearnerPathwayBadgeQueueJobSchema = z.strictObject({
+  jobType: z.literal("issue_learner_pathway_badge"),
+  tenantId: tenantIdSchema,
+  payload: z.strictObject({ enrollmentId: resourceIdSchema, handoffId: resourceIdSchema }),
+  idempotencyKey: idempotencyKeySchema,
+});
+
 export const queueJobSchema = z.discriminatedUnion("jobType", [
+  issueLearnerPathwayBadgeQueueJobSchema,
   issueBadgeQueueJobSchema,
   revokeBadgeQueueJobSchema,
   importMigrationBatchQueueJobSchema,

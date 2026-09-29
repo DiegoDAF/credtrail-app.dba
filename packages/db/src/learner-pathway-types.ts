@@ -2,6 +2,7 @@ export type LearnerPathwayStatus = "draft" | "published" | "retired";
 export type LearnerPathwayVersionStatus = "draft" | "published" | "superseded";
 export type LearnerPathwayCompletionBehavior =
   | "mark_complete"
+  | "issue_credential"
   | "credential_eligible"
   | "review_required";
 export type LearnerPathwayRequirementKind = "badge_template" | "learner_record";
@@ -85,6 +86,7 @@ export interface LearnerPathwayEvaluationRecord {
 /** Canonical learner-facing progress state derived from evaluation and completion lifecycle. */
 export type LearnerPathwayProgressState =
   | { readonly _tag: "in_progress" }
+  | { readonly _tag: "issuing" }
   | { readonly _tag: "invalidated" }
   | { readonly _tag: "complete" }
   | {

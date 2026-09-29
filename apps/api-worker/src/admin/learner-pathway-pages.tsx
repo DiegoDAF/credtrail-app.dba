@@ -70,6 +70,7 @@ const pathwayDisplayStatus = (pathway: LearnerPathwayRecord): { label: string; t
 type LearnerPathwayProgressStateTag = LearnerPathwayProgressState["_tag"];
 
 const evaluationPresentation = {
+  issuing: { label: "Issuing badge", tone: "pending_review" },
   complete: { label: "Complete", tone: "active" },
   eligible: { label: "Approved for issuance", tone: "active" },
   issued: { label: "Credential issued", tone: "active" },
@@ -79,6 +80,7 @@ const evaluationPresentation = {
 } satisfies Record<LearnerPathwayProgressStateTag, { label: string; tone: string }>;
 
 const progressStateMessages = {
+  issuing: "All requirements are complete. The final badge is being issued automatically.",
   eligible: "Final credential eligible — issuance is awaiting an administrator decision.",
   issued: "The final credential was issued through the governed handoff.",
   needs_review: "Final credential review is pending in this governed handoff.",
@@ -366,6 +368,17 @@ export const learnerPathwayBuilderPage = (
             <AdminField label="When every requirement is satisfied">
               <CtSelect name="completionBehavior" required>
                 <option
+                  value="issue_credential"
+                  selected={
+                    input.draft === null ||
+                    input.draft.version.completionBehavior === "issue_credential"
+                      ? true
+                      : undefined
+                  }
+                >
+                  Award the final badge automatically
+                </option>
+                <option
                   value="mark_complete"
                   selected={
                     input.draft?.version.completionBehavior === "mark_complete" ? true : undefined
@@ -381,7 +394,7 @@ export const learnerPathwayBuilderPage = (
                       : undefined
                   }
                 >
-                  Mark eligible for a final credential
+                  Wait for an administrator to issue the final badge
                 </option>
                 <option
                   value="review_required"
@@ -395,17 +408,19 @@ export const learnerPathwayBuilderPage = (
             </AdminField>
             <AdminField label="Final credential">
               <CtSelect name="finalBadgeTemplateId">
-                <option value="">Not used for completion-only pathways</option>
+                <option value="">Choose a final badge, or leave blank for completion only</option>
                 {input.badgeTemplates
                   .filter((template) => !template.isArchived)
                   .map((template) => (
                     <option
                       value={template.id}
+                      disabled={template.imageUri === null ? true : undefined}
                       selected={
                         input.draft?.version.finalBadgeTemplateId === template.id ? true : undefined
                       }
                     >
                       {template.title}
+                      {template.imageUri === null ? " (add artwork first)" : ""}
                     </option>
                   ))}
               </CtSelect>

@@ -342,6 +342,8 @@ jobs:
         run: |
           cp wrangler.local.jsonc.example wrangler.local.jsonc
           cp .dev.vars.local.example .dev.vars.local
+          processor_token="$(openssl rand -hex 32)"
+          echo "JOB_PROCESSOR_TOKEN=$processor_token" >> .dev.vars.local
 
       - name: Migrate and seed
         env:

@@ -1,4 +1,8 @@
-import type { LearnerPathwayProgressRecord, LearnerPathwayRequirementState } from "@credtrail/db";
+import type {
+  LearnerPathwayProgressRecord,
+  LearnerPathwayProgressState,
+  LearnerPathwayRequirementState,
+} from "@credtrail/db";
 import type { HtmlEscapedString } from "hono/utils/html";
 
 const requirementLabels: Record<LearnerPathwayRequirementState, string> = {
@@ -7,6 +11,18 @@ const requirementLabels: Record<LearnerPathwayRequirementState, string> = {
   not_recorded: "To complete",
   in_review: "Under review",
   invalidated: "Needs attention",
+};
+
+const completionMessages: Record<LearnerPathwayProgressState["_tag"], string> = {
+  in_progress: "Complete the remaining requirements to finish this pathway.",
+  issuing: "All requirements are complete. Your final badge is being issued automatically.",
+  eligible:
+    "All requirements are complete. Your institution still needs to issue your final badge.",
+  issued: "Your final badge has been awarded.",
+  needs_review: "All requirements are complete. Your institution is reviewing your final badge.",
+  invalidated:
+    "Some evidence is no longer current. Contact your institution to review your progress.",
+  complete: "You have completed this pathway.",
 };
 
 /** Shows institution-defined badge groups and completion guidance on the learner dashboard. */
@@ -28,6 +44,14 @@ export const DashboardPathways = (input: {
         <article class="learner-dashboard__pathway" key={pathway.enrollmentId}>
           <h3>{pathway.pathwayTitle}</h3>
           <p>{pathway.learnerDescription}</p>
+          <p>{completionMessages[pathway.state._tag]}</p>
+          {pathway.state._tag === "issued" ? (
+            <p>
+              <a href={`/badges/${encodeURIComponent(pathway.state.assertionPublicId)}`}>
+                View your final badge
+              </a>
+            </p>
+          ) : null}
           <ul class="learner-dashboard__pathway-requirements">
             {pathway.evaluation.requirements.map((requirement) => (
               <li key={requirement.requirementId}>

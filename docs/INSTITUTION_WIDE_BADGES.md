@@ -29,6 +29,22 @@ Use **Learner pathways** to create a named group, such as First-Year Experience:
 
 1. Give the pathway a name, learner-facing description, and program owner.
 2. Choose its badge requirements. Add **How to complete** guidance for each requirement, such as where to complete orientation and whom to contact afterward. A blank guidance field uses the badge's description.
-3. Publish the pathway and enroll the intended learners.
+3. Choose **Award the final badge automatically** and select a final badge with artwork, or choose a completion-only or administrator-reviewed workflow.
+4. Publish the pathway and enroll the intended learners.
 
 Enrolled learners see the group on their dashboard, with complete, outstanding, waived, or review states for each requirement, completion guidance, and a link to the supporting evidence in their learner record. Progress comes from the existing pathway evaluation process as institutional evidence is recorded; learners cannot mark their own requirements complete.
+
+## Require three trainings before a first-year seminar
+
+Create a badge for harassment prevention, AI training, and library research, then create a First-Year badge. Attach artwork to each badge.
+
+1. Configure each training badge to use its completion evidence. When an LMS records completion or a passing score, use an automatic rule tied to that evidence source. Offer the rule across the institution through **Course availability**. Use instructor confirmation when completion must be checked by a person.
+2. Create a First-Year pathway with the three training badges as requirements. Choose **Award the final badge automatically**, select the First-Year badge, publish the pathway, and enroll the intended learners.
+3. As each training badge is issued, CredTrail updates the learner's pathway. All three are required. Completing the third queues the First-Year badge automatically. Learners see the issuance status and then a link to their final badge.
+4. In the seminar, place an approved rule for the First-Year badge. Its requirements should match the three training badges. The instructor opens its CredTrail roster and checks for an active First-Year award. The award is recognized even when it was issued by the pathway outside that course.
+
+The instructor makes the seminar admission decision. This workflow does not change LMS enrollment or course-access settings.
+
+Automatic awards use durable delivery and a stable identity for each pathway completion. Retries do not create duplicate awards. CredTrail rechecks training evidence before issuing the final badge, including inside the transaction that records the award. If evidence was revoked before issuance, the learner must satisfy the requirements again.
+
+A pathway configured to wait for administrator issuance or review keeps that approval step. Its dashboard status tells learners that the final badge is still pending.

@@ -56,6 +56,7 @@ interface ProgressProjectionRow extends EnrollmentContextRow {
 const completionStateFromRow = (
   row: CompletionHandoffRow | null,
   evaluationResult: LearnerPathwayEvaluationResult,
+  completionBehavior: LearnerPathwayCompletionBehavior,
 ): LearnerPathwayProgressState => {
   if (row === null || row.status === "cancelled") {
     switch (evaluationResult) {
@@ -74,6 +75,7 @@ const completionStateFromRow = (
     case "recorded":
       return { _tag: "complete" };
     case "eligible": {
+      if (completionBehavior === "issue_credential") return { _tag: "issuing" };
       if (row.badgeTemplateId === null) {
         throw new Error(`Stored ${row.status} pathway handoff is missing its badge template`);
       }
@@ -146,7 +148,7 @@ const learnerPathwayProgressFromRow = (
     completionBehavior: context.completionBehavior,
     evaluation,
     evaluationHistory,
-    state: completionStateFromRow(completionHandoff, evaluation.result),
+    state: completionStateFromRow(completionHandoff, evaluation.result, context.completionBehavior),
     nextRequirement:
       evaluation.requirements.find(
         (requirement) => requirement.state !== "met" && requirement.state !== "waived",

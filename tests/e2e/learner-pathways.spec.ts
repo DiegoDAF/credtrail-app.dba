@@ -17,6 +17,7 @@ test("an administrator can define, publish, and evaluate a governed learner path
     .getByLabel("What learners are working toward")
     .fill("Complete verified evidence without turning institutional progress into a game.");
   await page.getByLabel("Program owner").selectOption({ index: 1 });
+  await page.getByLabel("When every requirement is satisfied").selectOption("mark_complete");
   await page
     .getByRole("combobox", { name: "Requirement 1", exact: true })
     .selectOption({ index: 1 });
