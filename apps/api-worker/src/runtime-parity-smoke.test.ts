@@ -51,6 +51,18 @@ class NoopSpan {
     return this;
   }
 
+  recordException(_exception: Parameters<Span["recordException"]>[0]): void {
+    return undefined;
+  }
+
+  updateName(_name: string): this {
+    return this;
+  }
+
+  setStatus(_status: TracingSpanStatus): this {
+    return this;
+  }
+
   end(): void {
     return undefined;
   }
@@ -60,6 +72,7 @@ const tracing: Tracing = {
   enterSpan: (_name, callback, ...args) => callback(new NoopSpan(), ...args),
   startActiveSpan: (_name, callback, ...args) => callback(new NoopSpan(), ...args),
   startSpan: (_name) => new NoopSpan(),
+  getActiveSpan: () => undefined,
   Span: NoopSpan,
 };
 
