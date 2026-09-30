@@ -86,5 +86,6 @@
   "0084_assertion_notification_lookup.sql": "30e3b7d0748cf36935d0db3254d5c98d4bdfd7ce078daf5920fc52551fb19668",
   "0085_badge_rule_custom_labels.sql": "5b3311d30651b64529b1f1a32e308e616cc087a2023859abc1809687e383ce85",
   "0086_automatic_pathway_badges.sql": "57d43760be0e49342d0b35cb75ec96f078a420bfd59114a91296adf42f2cca28",
-  "0087_badge_renewal.sql": "df1b6a9042ba4a8b9dde7f302739ba95a772ad7e483f51b4df77405a71d3ed1e"
+  "0087_badge_renewal.sql": "df1b6a9042ba4a8b9dde7f302739ba95a772ad7e483f51b4df77405a71d3ed1e",
+  "0088_oid4vci_credential_delivery.sql": "88b5f0b68b8ce9a11d7157492f7e29cd7308ba279a116cbe9eb5e54534e81bc7"
 }
