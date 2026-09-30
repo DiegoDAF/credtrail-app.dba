@@ -2,7 +2,7 @@ packages:
   - apps/*
   - packages/*
 overrides:
-  "@digitalbazaar/http-client>undici": 6.28.0
+  "@digitalbazaar/http-client>undici": 6.28.1
   "@types/node": 24.13.2
   esbuild: 0.28.1
   jose: 6.2.3
