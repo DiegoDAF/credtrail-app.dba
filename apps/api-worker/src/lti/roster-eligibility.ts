@@ -11,10 +11,9 @@ import type { BadgeIssuanceRuleDefinition } from "@credtrail/validation";
 import type { AppLogger } from "../app/observability";
 import type { LtiNrpsMember } from "./nrps";
 import { primaryEvaluationDetail } from "../rules/engine";
-import {
-  evaluateBadgeRuleLearner,
-  type BadgeRuleLearnerEvaluationResult,
-} from "../rules/badge-rule-learner-evaluator";
+import type { BadgeRuleLearnerEvaluationResult } from "../rules/badge-rule-learner-evaluator";
+import type { GradebookAutomatedEvaluationReader } from "../lms/gradebook-types";
+import { createLtiRosterRuleEvaluator, type LtiRosterRuleEvaluator } from "./roster-rule-evaluator";
 import {
   resolveBadgeIssuanceRuleDefinitionValueLists,
   resolveRuleDefinition,
@@ -330,13 +329,12 @@ const ltiNrpsMemberWithEmail = (
 };
 
 const evaluateLtiRosterMemberEligibilityWithPreparedContext = async (input: {
-  db: SqlDatabase;
-  tenantId: string;
   member: LtiNrpsMember;
   issuedState: LtiRosterIssuedBadgeStateForEligibility | null;
   nowIso: string;
   confirmedByUserId?: string | undefined;
   prepared: LtiRosterEligibilityPreparedEvaluation;
+  evaluateLearner: LtiRosterRuleEvaluator;
 }): Promise<LtiRosterEligibilityResult> => {
   const earlyResult = memberEligibilityBeforeRuleEvaluation({
     member: input.member,
@@ -360,15 +358,9 @@ const evaluateLtiRosterMemberEligibilityWithPreparedContext = async (input: {
   });
   if (confirmation !== null) return renewalEligibility(confirmation, input.issuedState);
 
-  const result = await evaluateBadgeRuleLearner({
-    db: input.db,
-    tenantId: input.tenantId,
-    lmsProviderKind: input.prepared.lmsProviderKind,
-    lmsConnectionId: input.prepared.lmsConnectionId ?? undefined,
-    learnerId: input.member.userId,
+  const result = await input.evaluateLearner({
+    ltiUserId: input.member.userId,
     recipientEmail: input.member.email,
-    definition: input.prepared.definition,
-    nowIso: input.nowIso,
     previousIssuedAt: input.issuedState?.issuedAt,
   });
 
@@ -392,6 +384,7 @@ export const evaluateLtiRosterMemberEligibility = async (input: {
   member: LtiNrpsMember;
   issuedState: LtiRosterIssuedBadgeStateForEligibility | null;
   nowIso: string;
+  gradebookProvider?: GradebookAutomatedEvaluationReader | undefined;
 }): Promise<LtiRosterEligibilityResult> => {
   if (input.issuedState !== null && input.issuedState.lifecycleState !== "expired") {
     return alreadyIssuedEligibilityResult(input.issuedState);
@@ -408,12 +401,11 @@ export const evaluateLtiRosterMemberEligibility = async (input: {
   });
 
   return evaluateLtiRosterMemberEligibilityWithPreparedContext({
-    db: input.db,
-    tenantId: input.tenantId,
     member: input.member,
     issuedState: input.issuedState,
     nowIso: input.nowIso,
     prepared,
+    evaluateLearner: createLtiRosterRuleEvaluator({ ...input, prepared }),
   });
 };
 
@@ -426,6 +418,7 @@ export const evaluateLtiRosterMembersEligibility = async (input: {
   nowIso: string;
   confirmedByUserId?: string | undefined;
   prepared?: LtiRosterEligibilityPreparedEvaluation | null;
+  gradebookProvider?: GradebookAutomatedEvaluationReader | undefined;
 }): Promise<Map<string, LtiRosterEligibilityResult>> => {
   if (input.ruleResolution.status !== "resolved") {
     const unresolvedResult = rosterMemberEligibilityFromRuleResolution(input.ruleResolution);
@@ -458,6 +451,7 @@ export const evaluateLtiRosterMembersEligibility = async (input: {
     issuedStatesByUserId: input.issuedStatesByUserId,
     nowIso: input.nowIso,
     confirmedByUserId: input.confirmedByUserId,
+    gradebookProvider: input.gradebookProvider,
   });
 };
 
@@ -469,19 +463,20 @@ const evaluateLtiRosterMembersEligibilityWithPreparedContext = async (input: {
   members: readonly LtiNrpsMember[];
   issuedStatesByUserId: ReadonlyMap<string, LtiRosterIssuedBadgeStateForEligibility>;
   nowIso: string;
+  gradebookProvider?: GradebookAutomatedEvaluationReader | undefined;
 }): Promise<Map<string, LtiRosterEligibilityResult>> => {
+  const evaluateLearner = createLtiRosterRuleEvaluator(input);
   const eligibilityEntries = await mapConcurrentBounded(
     input.members,
     { concurrency: 8 },
     async (member): Promise<readonly [string, LtiRosterEligibilityResult]> => {
       const eligibility = await evaluateLtiRosterMemberEligibilityWithPreparedContext({
-        db: input.db,
-        tenantId: input.tenantId,
         member,
         issuedState: input.issuedStatesByUserId.get(member.userId) ?? null,
         nowIso: input.nowIso,
         confirmedByUserId: input.confirmedByUserId,
         prepared: input.prepared,
+        evaluateLearner,
       });
 
       return [member.userId, eligibility] as const;

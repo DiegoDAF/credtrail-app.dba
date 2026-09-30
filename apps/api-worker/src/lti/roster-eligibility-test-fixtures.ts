@@ -3,7 +3,7 @@ import type {
   BadgeIssuanceRuleVersionRecord,
   LtiResourceLinkPlacementRecord,
 } from "@credtrail/db";
-import type { BadgeIssuanceRuleEvaluationFacts } from "../rules/engine";
+import type { GradebookAutomatedEvaluationReader } from "../lms/gradebook-types";
 import type { LtiNrpsMember } from "./nrps";
 import {
   buildBadgeRuleVersionRecord,
@@ -104,25 +104,40 @@ export const sampleLtiRosterResourceLinkPlacement = (
   ...overrides,
 });
 
-export const sampleLtiRosterRuleEvaluationFacts = (
-  finalScore: number | null,
-): BadgeIssuanceRuleEvaluationFacts => ({
-  learnerId: "learner-001",
-  nowIso: "2026-02-10T22:00:00.000Z",
-  grades:
-    finalScore === null
-      ? []
-      : [
-          {
-            courseId: "course-123",
-            learnerId: "learner-001",
-            currentScore: finalScore,
-            finalScore,
-          },
-        ],
-  completions: [],
-  submissions: [],
-  surveyCompletions: [],
-  customFields: [],
-  earnedBadgeTemplateIds: [],
+/** Gradebook adapter fixture that returns facts for the requested LMS learner. */
+export const sampleLtiRosterGradebook = (
+  finalScore: number | null = 92,
+): GradebookAutomatedEvaluationReader => ({
+  listLearners: ({ courseId }) =>
+    Promise.resolve([
+      {
+        courseId,
+        learnerId: "learner-001",
+        displayName: "Learner One",
+        email: "learner-one@example.edu",
+      },
+      {
+        courseId,
+        learnerId: "learner-002",
+        displayName: "Learner Two",
+        email: "learner-two@example.edu",
+      },
+    ]),
+  listGrades: ({ courseId, learnerId }) =>
+    Promise.resolve(
+      finalScore === null
+        ? []
+        : [
+            {
+              courseId,
+              learnerId: learnerId ?? "",
+              currentScore: finalScore,
+              finalScore,
+              currentGrade: null,
+              finalGrade: null,
+            },
+          ],
+    ),
+  listCompletions: () => Promise.resolve([]),
+  listSubmissions: () => Promise.resolve([]),
 });

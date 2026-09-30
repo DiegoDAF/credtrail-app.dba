@@ -941,7 +941,8 @@ export const createSakaiGradebookProvider = (
             learnerId: student.learnerId,
             workflowState: grade.workflowState,
             score: asNumber(grade.grade),
-            submittedAt: grade.recordedAt,
+            // Grade edits also change dateRecorded; it cannot prove a new attempt.
+            submittedAt: null,
             gradedAt: grade.recordedAt,
             late: null,
             missing: null,
@@ -978,21 +979,14 @@ export const createSakaiGradebookProvider = (
         .map((student) => {
           const completionPercent = deriveGradebookItemCompletionPercent(matrix.columns, student);
           const completed = completionPercent !== null && completionPercent >= 100;
-          const dates = matrix.columns.map(
-            (column) => student.gradesByAssignmentId[column.id]?.recordedAt ?? null,
-          );
-          const datedItems = dates.filter((date): date is string => date !== null).sort();
-          const evidenceFrom =
-            completed && datedItems.length === matrix.columns.length
-              ? (datedItems[0] ?? null)
-              : null;
           return {
             courseId: matrix.siteId,
             learnerId: student.learnerId,
             completed,
-            completedAt: completed ? (datedItems.at(-1) ?? null) : null,
-            evidenceFrom,
-            gradeEvidenceFrom: evidenceFrom,
+            // The gradebook reports grading dates, not training completion dates.
+            completedAt: null,
+            evidenceFrom: null,
+            gradeEvidenceFrom: null,
             completionPercent,
             sourceState: completionPercent === null ? null : "gradebook_items",
           };

@@ -9,10 +9,9 @@ import type { GradebookRequestOptions } from "./gradebook-types";
 
 /**
  * LMS picker limits are intentionally tighter than full gradebook sync limits:
- * route-level LMS_PICKER_MAX_* caps keep admin select payloads usable, Canvas picker
- * calls read one page, and full gradebook evaluation can walk many pages for fidelity.
+ * route-level LMS_PICKER_MAX_* caps keep admin select payloads usable. Provider
+ * reads used by automatic evaluation must finish pagination or fail explicitly.
  */
-export const CANVAS_PICKER_MAX_PAGES = 1;
 export const CANVAS_GRADEBOOK_FULL_MAX_PAGES = 100;
 
 const linkHeaderDeclaresRel = (linkHeader: string, rel: string): boolean => {

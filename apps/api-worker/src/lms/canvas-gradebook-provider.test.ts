@@ -94,6 +94,42 @@ const createMockFetch = (routes: readonly MockRoute[]): typeof fetch => {
 };
 
 describe("createCanvasGradebookProvider", () => {
+  it("reads learners beyond the first page and fails instead of returning a partial roster", async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      id: index + 1,
+      name: `Learner ${index + 1}`,
+      email: `learner${index + 1}@example.edu`,
+    }));
+    const next = "https://canvas.example.edu/api/v1/courses/master/users?page=2";
+    const provider = (mode: "complete" | "error" | "loop") =>
+      createCanvasGradebookProvider({
+        config: { kind: "canvas", apiBaseUrl: "https://canvas.example.edu", accessToken: "test" },
+        fetchImpl: async (input) => {
+          const url = new URL(input instanceof Request ? input.url : input);
+          const second = url.searchParams.has("page");
+          if (second && mode === "error") return new Response(null, { status: 503 });
+          return new Response(
+            JSON.stringify(
+              second ? [{ id: 101, name: "Learner 101", email: "last@example.edu" }] : firstPage,
+            ),
+            {
+              headers: {
+                "content-type": "application/json",
+                ...(!second || mode === "loop" ? { link: `<${next}>; rel="next"` } : {}),
+              },
+            },
+          );
+        },
+      });
+    const learners = await provider("complete").listLearners({ courseId: "master" });
+    expect(learners).toHaveLength(101);
+    expect(learners.at(-1)?.learnerId).toBe("101");
+    await expect(provider("error").listLearners({ courseId: "master" })).rejects.toThrow("503");
+    await expect(provider("loop").listLearners({ courseId: "master" })).rejects.toThrow(
+      "bounded page limit",
+    );
+  });
+
   it("maps canvas API responses to normalized records", async () => {
     const provider = createCanvasGradebookProvider({
       config: {

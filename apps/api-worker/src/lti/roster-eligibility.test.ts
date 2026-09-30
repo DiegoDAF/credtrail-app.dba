@@ -11,17 +11,12 @@ vi.mock("@credtrail/db", async () => {
   };
 });
 
-vi.mock("../rules/badge-rule-facts-loader", () => ({
-  loadRuleFacts: vi.fn(),
-}));
-
 import {
   findActiveBadgeIssuanceRuleVersion,
   findBadgeIssuanceRuleById,
   findLtiResourceLinkPlacement,
   type SqlDatabase,
 } from "@credtrail/db";
-import { loadRuleFacts } from "../rules/badge-rule-facts-loader";
 import {
   evaluateLtiRosterMemberEligibility,
   evaluateLtiRosterMembersEligibility,
@@ -33,22 +28,23 @@ import {
   sampleLtiRosterBadgeRule,
   sampleLtiRosterBadgeRuleVersion,
   sampleLtiRosterMember,
-  sampleLtiRosterRuleEvaluationFacts,
+  sampleLtiRosterGradebook,
 } from "./roster-eligibility-test-fixtures";
 
 const mockedFindActiveBadgeIssuanceRuleVersion = vi.mocked(findActiveBadgeIssuanceRuleVersion);
 const mockedFindBadgeIssuanceRuleById = vi.mocked(findBadgeIssuanceRuleById);
 const mockedFindLtiResourceLinkPlacement = vi.mocked(findLtiResourceLinkPlacement);
-const mockedLoadRuleFacts = vi.mocked(loadRuleFacts);
+
+let gradebookScore: number | null = 92;
 
 const fakeDb = {} as SqlDatabase;
 
 describe("LTI roster eligibility", () => {
   beforeEach(() => {
+    gradebookScore = 92;
     mockedFindActiveBadgeIssuanceRuleVersion.mockReset();
     mockedFindBadgeIssuanceRuleById.mockReset();
     mockedFindLtiResourceLinkPlacement.mockReset();
-    mockedLoadRuleFacts.mockReset();
     mockedFindBadgeIssuanceRuleById.mockResolvedValue(sampleLtiRosterBadgeRule());
     mockedFindActiveBadgeIssuanceRuleVersion.mockResolvedValue(sampleLtiRosterBadgeRuleVersion());
   });
@@ -90,9 +86,8 @@ describe("LTI roster eligibility", () => {
   });
 
   it("marks learners with passing rule facts as eligible", async () => {
-    mockedLoadRuleFacts.mockResolvedValue(sampleLtiRosterRuleEvaluationFacts(92));
-
     const result = await evaluateLtiRosterMemberEligibility({
+      gradebookProvider: sampleLtiRosterGradebook(gradebookScore),
       db: fakeDb,
       tenantId: "tenant_123",
       ruleResolution: { status: "resolved", ruleId: "brl_123" },
@@ -109,9 +104,10 @@ describe("LTI roster eligibility", () => {
   });
 
   it("marks learners with failing rule facts as not yet eligible", async () => {
-    mockedLoadRuleFacts.mockResolvedValue(sampleLtiRosterRuleEvaluationFacts(72));
+    gradebookScore = 72;
 
     const result = await evaluateLtiRosterMemberEligibility({
+      gradebookProvider: sampleLtiRosterGradebook(gradebookScore),
       db: fakeDb,
       tenantId: "tenant_123",
       ruleResolution: { status: "resolved", ruleId: "brl_123" },
@@ -129,9 +125,10 @@ describe("LTI roster eligibility", () => {
   });
 
   it("marks missing gradebook facts as missing evidence", async () => {
-    mockedLoadRuleFacts.mockResolvedValue(sampleLtiRosterRuleEvaluationFacts(null));
+    gradebookScore = null;
 
     const result = await evaluateLtiRosterMemberEligibility({
+      gradebookProvider: sampleLtiRosterGradebook(gradebookScore),
       db: fakeDb,
       tenantId: "tenant_123",
       ruleResolution: { status: "resolved", ruleId: "brl_123" },
@@ -151,6 +148,7 @@ describe("LTI roster eligibility", () => {
     mockedFindActiveBadgeIssuanceRuleVersion.mockResolvedValue(null);
 
     const result = await evaluateLtiRosterMemberEligibility({
+      gradebookProvider: sampleLtiRosterGradebook(gradebookScore),
       db: fakeDb,
       tenantId: "tenant_123",
       ruleResolution: { status: "resolved", ruleId: "brl_123" },
@@ -168,6 +166,7 @@ describe("LTI roster eligibility", () => {
 
   it("keeps already-issued learners unselectable", async () => {
     const result = await evaluateLtiRosterMemberEligibility({
+      gradebookProvider: sampleLtiRosterGradebook(gradebookScore),
       db: fakeDb,
       tenantId: "tenant_123",
       ruleResolution: { status: "resolved", ruleId: "brl_123" },
@@ -189,13 +188,13 @@ describe("LTI roster eligibility", () => {
   });
 
   it("prepares rule context once for roster batch evaluation", async () => {
-    mockedLoadRuleFacts.mockResolvedValue(sampleLtiRosterRuleEvaluationFacts(92));
     const members = [
       sampleLtiRosterMember({ userId: "learner-001" }),
       sampleLtiRosterMember({ userId: "learner-002", email: "learner-two@example.edu" }),
     ];
 
     const eligibilityByUserId = await evaluateLtiRosterMembersEligibility({
+      gradebookProvider: sampleLtiRosterGradebook(gradebookScore),
       db: fakeDb,
       tenantId: "tenant_123",
       ruleResolution: { status: "resolved", ruleId: "brl_123" },
@@ -208,11 +207,11 @@ describe("LTI roster eligibility", () => {
     expect(eligibilityByUserId.get("learner-002")).toMatchObject({ status: "eligible" });
     expect(mockedFindBadgeIssuanceRuleById).toHaveBeenCalledTimes(1);
     expect(mockedFindActiveBadgeIssuanceRuleVersion).toHaveBeenCalledTimes(1);
-    expect(mockedLoadRuleFacts).toHaveBeenCalledTimes(2);
   });
 
   it("preserves already-issued learners when placement lookup fails", async () => {
     const eligibilityByUserId = await evaluateLtiRosterMembersEligibility({
+      gradebookProvider: sampleLtiRosterGradebook(gradebookScore),
       db: fakeDb,
       tenantId: "tenant_123",
       ruleResolution: {

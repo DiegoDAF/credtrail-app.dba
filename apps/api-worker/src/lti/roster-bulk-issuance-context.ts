@@ -1,5 +1,6 @@
 import type { SqlDatabase } from "@credtrail/db";
 import type { AppLogger } from "../app/observability";
+import type { GradebookAutomatedEvaluationReader } from "../lms/gradebook-types";
 import type { LtiNrpsMember } from "./nrps";
 import {
   ltiRosterRulePendingIssuanceBehavior,
@@ -103,6 +104,7 @@ export const prepareLtiRosterBulkIssuanceContext = async (input: {
   issuedStatesByUserId: ReadonlyMap<string, LtiRosterIssuedBadgeStateForEligibility>;
   nowIso: string;
   ltiLog?: AppLogger | undefined;
+  gradebookProvider?: GradebookAutomatedEvaluationReader | undefined;
 }): Promise<LtiRosterBulkIssuanceContext> => {
   const ruleContext = await prepareLtiRosterRuleIssuanceContext(input);
   const eligibilityByUserId = await evaluateLtiRosterMembersEligibility({
@@ -113,6 +115,7 @@ export const prepareLtiRosterBulkIssuanceContext = async (input: {
     issuedStatesByUserId: input.issuedStatesByUserId,
     nowIso: input.nowIso,
     prepared: ruleContext.prepared,
+    gradebookProvider: input.gradebookProvider,
   });
   const eligibilityResults = input.members.map((member) => {
     const eligibility = eligibilityByUserId.get(member.userId);

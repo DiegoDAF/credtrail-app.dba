@@ -1,7 +1,6 @@
 import { asJsonObject, asNonEmptyString, asString } from "../utils/value-parsers";
 import {
   CANVAS_GRADEBOOK_FULL_MAX_PAGES,
-  CANVAS_PICKER_MAX_PAGES,
   fetchCanvasJsonArrayPages,
 } from "./canvas-link-pagination";
 import type { GradebookProviderOperation } from "./gradebook-provider-error";
@@ -594,8 +593,8 @@ export const createCanvasGradebookProvider = (
       const users = await requestArray(
         `/api/v1/courses/${encodeURIComponent(input.courseId)}/users`,
         query,
-        CANVAS_PICKER_MAX_PAGES,
-        "truncate",
+        CANVAS_GRADEBOOK_FULL_MAX_PAGES,
+        "throw",
         "learner_search",
         options,
       );

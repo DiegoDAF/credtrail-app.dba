@@ -68,10 +68,6 @@ vi.mock("@credtrail/db/postgres", () => {
   };
 });
 
-vi.mock("./rules/badge-rule-facts-loader", () => ({
-  loadRuleFacts: vi.fn(),
-}));
-
 import {
   addLearnerIdentityAlias,
   attachLtiLaunchSessionPrincipal,
@@ -142,7 +138,6 @@ import {
 import { createPostgresDatabase } from "@credtrail/db/postgres";
 
 import { app } from "./index";
-import { loadRuleFacts } from "./rules/badge-rule-facts-loader";
 import { readScriptAssetSource } from "./page-asset-test-utils";
 
 interface ErrorResponse {
@@ -221,7 +216,6 @@ const mockedUpsertTenantMembershipRole = vi.mocked(upsertTenantMembershipRole);
 const mockedUpsertTenantLmsUserIdentity = vi.mocked(upsertTenantLmsUserIdentity);
 const mockedUpsertUserByEmail = vi.mocked(upsertUserByEmail);
 const mockedCreatePostgresDatabase = vi.mocked(createPostgresDatabase);
-const mockedLoadRuleFacts = vi.mocked(loadRuleFacts);
 
 interface AuthUserRow {
   id: string;
@@ -1065,24 +1059,6 @@ describe("LTI 1.3 core launch flow", () => {
       createdAt: "2026-02-10T22:00:00.000Z",
       updatedAt: "2026-02-10T22:00:00.000Z",
     });
-    mockedLoadRuleFacts.mockReset();
-    mockedLoadRuleFacts.mockImplementation(async (_input) => ({
-      learnerId: "learner-001",
-      nowIso: "2026-02-10T22:00:00.000Z",
-      grades: [
-        {
-          courseId: "course-123",
-          learnerId: "learner-001",
-          currentScore: 92,
-          finalScore: 92,
-        },
-      ],
-      completions: [],
-      submissions: [],
-      surveyCompletions: [],
-      customFields: [],
-      earnedBadgeTemplateIds: [],
-    }));
     mockedPlaceStableLtiBadgeRule.mockReset();
     mockedPlaceStableLtiBadgeRule.mockImplementation(async (_db, input) => {
       if (input.incomingRuleId === null && input.incomingBadgeTemplateId === null) {
@@ -2482,7 +2458,19 @@ describe("LTI 1.3 core launch flow", () => {
     expect(mockedResolveLearnerProfileForIdentity).not.toHaveBeenCalled();
   });
 
-  it("pulls NRPS roster for instructor launch and renders bulk issuance view", async () => {
+  it("pulls NRPS roster for instructor launch and renders a confirmation rule's bulk issuance view", async () => {
+    mockedFindActiveBadgeIssuanceRuleVersion.mockResolvedValue(
+      sampleBadgeIssuanceRuleVersion({
+        status: "active",
+        ruleJson: JSON.stringify({
+          conditions: {
+            type: "instructor_confirmation",
+            instructions: "Confirm the learner has completed the required training.",
+          },
+          options: { issuanceTiming: "manual" },
+        }),
+      }),
+    );
     const env = createLtiEnv();
     const rosterTargetLinkUri = `${targetLinkUri}?badgeTemplateId=badge_template_001&ruleId=brl_lti_rule_123`;
     const getMembers = vi.fn().mockResolvedValue({
@@ -2586,6 +2574,7 @@ describe("LTI 1.3 core launch flow", () => {
       body.indexOf('class="lti-launch__bulk-table"'),
     );
     expect(body).toContain("Loaded 1 learner from LMS roster.");
+    expect(body).toContain("Awaiting confirmation");
     expect(body).toContain("badge_template_001");
     expect(body).toContain("learner-one@example.edu");
     expect(body).toContain("Already issued across courses");
@@ -2709,7 +2698,19 @@ describe("LTI 1.3 core launch flow", () => {
     });
   });
 
-  it("issues selected LMS roster learners through the LTI resource-link action", async () => {
+  it("issues selected LMS roster learners after instructor confirmation through the LTI resource-link action", async () => {
+    mockedFindActiveBadgeIssuanceRuleVersion.mockResolvedValue(
+      sampleBadgeIssuanceRuleVersion({
+        status: "active",
+        ruleJson: JSON.stringify({
+          conditions: {
+            type: "instructor_confirmation",
+            instructions: "Confirm the learner has completed the required training.",
+          },
+          options: { issuanceTiming: "manual" },
+        }),
+      }),
+    );
     const env = createLtiEnv();
     const rosterTargetLinkUri = `${targetLinkUri}?badgeTemplateId=badge_template_001&ruleId=brl_lti_rule_123`;
     const getMembers = vi.fn().mockResolvedValue({

@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { parseBadgeIssuanceRuleDefinition } from "@credtrail/validation";
+import { factsForBadgeRenewal } from "../rules/badge-renewal";
+import { evaluateBadgeIssuanceRuleDefinition } from "../rules/engine";
 import { CREDTRAIL_OUTBOUND_USER_AGENT } from "../http/outbound-user-agent";
 import {
   createSakaiGradebookProvider,
@@ -96,6 +99,74 @@ const createMockFetch = (
 };
 
 describe("createSakaiGradebookProvider", () => {
+  it("never treats an edited grade as a new submission or completed training cycle", async () => {
+    const { fetchImpl } = createMockFetch([
+      {
+        pathWithQuery: "/api/sites/hr-master/grading/full-gradebook",
+        responseBody: {
+          siteId: "hr-master",
+          columns: [{ id: "training", name: "Training", points: 100, released: true }],
+          students: [
+            {
+              userEid: "learner",
+              courseGrade: { pointsEarned: 95, totalPointsPossible: 100 },
+              grades: {
+                training: {
+                  grade: "95",
+                  gradeReleased: true,
+                  dateRecorded: "2026-09-20T00:00:00.000Z",
+                  excused: false,
+                },
+              },
+            },
+          ],
+        },
+      },
+    ]);
+    const provider = createSakaiGradebookProvider({
+      config: {
+        kind: "sakai",
+        apiBaseUrl: "https://sakai.example.edu",
+        accessToken: "sakai-token",
+      },
+      fetchImpl,
+    });
+    const request = { courseId: "hr-master", learnerId: "learner" };
+    const completions = await provider.listCompletions(request);
+    const facts = {
+      learnerId: "learner",
+      nowIso: "2026-09-30T00:00:00.000Z",
+      submissions: await provider.listSubmissions(request),
+      completions,
+      grades: (await provider.listGrades(request)).map((grade) => ({
+        ...grade,
+        evidenceFrom: completions[0]?.gradeEvidenceFrom,
+      })),
+      surveyCompletions: [],
+      customFields: [],
+      earnedBadgeTemplateIds: [],
+    };
+    for (const conditions of [
+      {
+        type: "assignment_submission",
+        courseId: "hr-master",
+        assignmentId: "training",
+        minScore: 80,
+      },
+      { type: "course_completion", courseId: "hr-master", minCompletionPercent: 100 },
+      { type: "grade_threshold", courseId: "hr-master", minScore: 80 },
+    ]) {
+      const definition = parseBadgeIssuanceRuleDefinition({ conditions, options: { renewal: {} } });
+      expect(evaluateBadgeIssuanceRuleDefinition(definition, facts).matched).toBe(true);
+      expect(
+        evaluateBadgeIssuanceRuleDefinition(
+          definition,
+          factsForBadgeRenewal(facts, "2025-09-01T00:00:00.000Z"),
+        ).matched,
+      ).toBe(false);
+    }
+  });
+
   it("creates a Sakai session from username and password", async () => {
     const requests: Array<{
       pathWithQuery: string;
@@ -293,7 +364,7 @@ describe("createSakaiGradebookProvider", () => {
         learnerId: "learner-1",
         workflowState: "graded",
         score: 95,
-        submittedAt: "2026-02-11T00:00:00.000Z",
+        submittedAt: null,
         gradedAt: "2026-02-11T00:00:00.000Z",
         late: null,
         missing: null,

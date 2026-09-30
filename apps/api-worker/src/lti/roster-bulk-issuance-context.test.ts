@@ -11,17 +11,12 @@ vi.mock("@credtrail/db", async () => {
   };
 });
 
-vi.mock("../rules/badge-rule-facts-loader", () => ({
-  loadRuleFacts: vi.fn(),
-}));
-
 import {
   findActiveBadgeIssuanceRuleVersion,
   findBadgeIssuanceRuleById,
   findLtiResourceLinkPlacement,
   type SqlDatabase,
 } from "@credtrail/db";
-import { loadRuleFacts } from "../rules/badge-rule-facts-loader";
 import { ltiRosterIssuanceBehaviorFromRuleDefinition } from "./issuance-behavior";
 import {
   ltiRosterIssuanceSkipDetail,
@@ -34,13 +29,12 @@ import {
   sampleLtiRosterBadgeRuleVersion,
   sampleLtiRosterMember,
   sampleLtiRosterResourceLinkPlacement,
-  sampleLtiRosterRuleEvaluationFacts,
+  sampleLtiRosterGradebook,
 } from "./roster-eligibility-test-fixtures";
 
 const mockedFindActiveBadgeIssuanceRuleVersion = vi.mocked(findActiveBadgeIssuanceRuleVersion);
 const mockedFindBadgeIssuanceRuleById = vi.mocked(findBadgeIssuanceRuleById);
 const mockedFindLtiResourceLinkPlacement = vi.mocked(findLtiResourceLinkPlacement);
-const mockedLoadRuleFacts = vi.mocked(loadRuleFacts);
 
 const fakeDb = {} as SqlDatabase;
 const nowIso = "2026-02-10T22:00:00.000Z";
@@ -76,6 +70,7 @@ const bulkContextInput = (
   members: [sampleLtiRosterMember()],
   issuedStatesByUserId: new Map(),
   nowIso,
+  gradebookProvider: sampleLtiRosterGradebook(),
   ...overrides,
 });
 
@@ -84,11 +79,9 @@ describe("LTI roster bulk issuance context", () => {
     mockedFindActiveBadgeIssuanceRuleVersion.mockReset();
     mockedFindBadgeIssuanceRuleById.mockReset();
     mockedFindLtiResourceLinkPlacement.mockReset();
-    mockedLoadRuleFacts.mockReset();
     mockedFindBadgeIssuanceRuleById.mockResolvedValue(sampleLtiRosterBadgeRule());
     mockedFindActiveBadgeIssuanceRuleVersion.mockResolvedValue(sampleLtiRosterBadgeRuleVersion());
     mockedFindLtiResourceLinkPlacement.mockResolvedValue(sampleLtiRosterResourceLinkPlacement());
-    mockedLoadRuleFacts.mockResolvedValue(sampleLtiRosterRuleEvaluationFacts(92));
   });
 
   describe("ltiRosterIssuanceSkipDetail", () => {
@@ -252,7 +245,6 @@ describe("LTI roster bulk issuance context", () => {
       const context = await prepareLtiRosterRuleIssuanceContext(bulkContextInput());
 
       expect(context.issuanceBehavior.key).toBe("immediate");
-      expect(mockedLoadRuleFacts).not.toHaveBeenCalled();
     });
 
     it("uses shared no-rule-linked detail for unresolved placements", async () => {
@@ -279,7 +271,6 @@ describe("LTI roster bulk issuance context", () => {
       expect(context.eligibilityByUserId.get("learner-001")).toMatchObject({
         status: "eligible",
       });
-      expect(mockedLoadRuleFacts).toHaveBeenCalledOnce();
     });
 
     it("evaluates member eligibility for manual rules", async () => {
@@ -292,7 +283,6 @@ describe("LTI roster bulk issuance context", () => {
       expect(context.eligibilityByUserId.get("learner-001")).toMatchObject({
         status: "eligible",
       });
-      expect(mockedLoadRuleFacts).toHaveBeenCalledOnce();
     });
 
     it("returns unresolved placement eligibility for rendering", async () => {

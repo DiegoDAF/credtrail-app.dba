@@ -125,7 +125,7 @@ export interface GradebookEnrollmentReader {
   ): Promise<readonly GradebookEnrollmentRecord[]>;
 }
 
-/** Reads learner rosters for discovery and automated evaluation. */
+/** Reads complete course rosters, or rejects when the provider cannot finish the read. */
 export interface GradebookLearnerReader {
   listLearners(
     input: {
