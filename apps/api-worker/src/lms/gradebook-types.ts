@@ -76,6 +76,8 @@ export interface GradebookSubmissionRecord {
   learnerId: string;
   workflowState: string | null;
   score: number | null;
+  /** Whether the score belongs to this submission attempt; null when the LMS cannot prove it. */
+  gradeMatchesCurrentSubmission: boolean | null;
   submittedAt: string | null;
   gradedAt: string | null;
   late: boolean | null;
@@ -94,7 +96,7 @@ export interface GradebookGradeRecord {
 export interface GradebookCompletionRecord {
   /** Earliest completion of the required items; absent when dates cannot prove a fresh course completion. */
   evidenceFrom?: string | null | undefined;
-  /** All scored attempts were graded after their current submissions. */
+  /** All required scores belong to current attempts and were graded after their submissions. */
   gradeEvidenceFrom?: string | null | undefined;
   courseId: string;
   learnerId: string;
@@ -125,7 +127,7 @@ export interface GradebookEnrollmentReader {
   ): Promise<readonly GradebookEnrollmentRecord[]>;
 }
 
-/** Reads complete course rosters, or rejects when the provider cannot finish the read. */
+/** Reads active and completed learners, or rejects when the provider cannot finish the read. */
 export interface GradebookLearnerReader {
   listLearners(
     input: {

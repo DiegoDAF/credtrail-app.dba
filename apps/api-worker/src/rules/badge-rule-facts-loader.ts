@@ -101,6 +101,7 @@ export const loadRuleFacts = async (
         workflowState: fact.workflowState ?? null,
         submittedAt: fact.submittedAt ?? null,
         gradedAt: fact.gradedAt ?? null,
+        gradeMatchesCurrentSubmission: fact.gradeMatchesCurrentSubmission ?? null,
       })),
       surveyCompletions: (requestedFacts.surveyCompletions ?? []).map((fact) => ({
         surveyId: fact.surveyId,
@@ -212,6 +213,7 @@ export const loadRuleFacts = async (
         workflowState: submission.workflowState,
         submittedAt: submission.submittedAt,
         gradedAt: submission.gradedAt,
+        gradeMatchesCurrentSubmission: submission.gradeMatchesCurrentSubmission,
       })),
     );
   }

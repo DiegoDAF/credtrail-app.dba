@@ -366,6 +366,7 @@ describe("createSakaiGradebookProvider", () => {
         score: 95,
         submittedAt: null,
         gradedAt: "2026-02-11T00:00:00.000Z",
+        gradeMatchesCurrentSubmission: null,
         late: null,
         missing: null,
       },

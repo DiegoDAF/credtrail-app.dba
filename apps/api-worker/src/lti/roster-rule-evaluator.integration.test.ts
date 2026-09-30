@@ -56,7 +56,7 @@ const setup = async () => {
 };
 
 describeDbIntegration("instructor checks of master-course rules", () => {
-  it("evaluates learner 101 automatically and uses the API identity in another course's roster", async () => {
+  it("evaluates a completed learner beyond page one and recognizes them in another course's roster", async () => {
     const fixture = await setup();
     try {
       const requests: URL[] = [];
@@ -72,6 +72,9 @@ describeDbIntegration("instructor checks of master-course rules", () => {
           const learnerId = Number(url.searchParams.get("student_ids[]"));
           const isRoster = url.pathname.endsWith("/users");
           const isFirst = !url.searchParams.has("page");
+          const includesCompleted = url.searchParams
+            .getAll("enrollment_state[]")
+            .includes("completed");
           const body = isRoster
             ? isFirst
               ? Array.from({ length: 100 }, (_, index) => ({
@@ -79,7 +82,9 @@ describeDbIntegration("instructor checks of master-course rules", () => {
                   name: `Learner ${index + 1}`,
                   email: `learner${index + 1}@example.edu`,
                 }))
-              : [{ id: 101, name: "Learner 101", email: "last@example.edu" }]
+              : includesCompleted
+                ? [{ id: 101, name: "Learner 101", email: "last@example.edu" }]
+                : []
             : url.pathname.endsWith("/students/submissions")
               ? [
                   {
@@ -89,6 +94,7 @@ describeDbIntegration("instructor checks of master-course rules", () => {
                     workflow_state: "graded",
                     submitted_at: "2026-09-20T12:00:00.000Z",
                     graded_at: "2026-09-21T12:00:00.000Z",
+                    grade_matches_current_submission: true,
                   },
                 ]
               : [];
@@ -97,7 +103,7 @@ describeDbIntegration("instructor checks of master-course rules", () => {
               "content-type": "application/json",
               ...(isRoster && isFirst
                 ? {
-                    link: '<https://canvas.example.edu/api/v1/courses/master/users?page=2>; rel="next"',
+                    link: `<${url.toString()}&page=2>; rel="next"`,
                   }
                 : {}),
             },

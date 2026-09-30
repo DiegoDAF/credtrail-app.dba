@@ -10,9 +10,9 @@ import {
   type BadgeIssuanceRuleDefinition,
 } from "@credtrail/validation";
 import { z } from "zod";
-import { badgeRenewalValidUntil, factsForBadgeRenewal } from "../rules/badge-renewal";
+import { badgeRenewalValidUntil } from "../rules/badge-renewal";
 import { loadRuleFacts } from "../rules/badge-rule-facts-loader";
-import { evaluateBadgeIssuanceRuleDefinition } from "../rules/engine";
+import { evaluateBadgeIssuanceRuleRenewal } from "../rules/engine";
 import { resolveBadgeIssuanceRuleDefinitionValueLists } from "../rules/badge-rule-definition-resolver";
 
 type RenewableBadgeIssuanceResult =
@@ -87,11 +87,7 @@ export const prepareRenewableBadgeIssuance = async (input: {
       requestedFacts: { ...parsedFacts.data, earnedBadgeTemplateIds: undefined },
       nowIso: input.issuedAt,
     });
-    if (
-      !evaluateBadgeIssuanceRuleDefinition(definition, facts).matched ||
-      !evaluateBadgeIssuanceRuleDefinition(definition, factsForBadgeRenewal(facts, cycle.issuedAt))
-        .matched
-    )
+    if (!evaluateBadgeIssuanceRuleRenewal(definition, facts, cycle.issuedAt).matched)
       return missingFreshEvidence;
   }
   return { status: "ready", validUntil, renewalOfAssertionId: cycle.assertionId };

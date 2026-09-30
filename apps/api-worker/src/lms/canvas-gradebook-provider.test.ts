@@ -174,7 +174,7 @@ describe("createCanvasGradebookProvider", () => {
         },
         {
           pathWithQuery:
-            "/api/v1/courses/course-42/enrollments?per_page=100&type%5B%5D=StudentEnrollment",
+            "/api/v1/courses/course-42/enrollments?per_page=100&type%5B%5D=StudentEnrollment&state%5B%5D=active&state%5B%5D=completed",
           responseBody: [
             {
               user_id: 11,
@@ -215,6 +215,7 @@ describe("createCanvasGradebookProvider", () => {
               score: 96.5,
               submitted_at: "2026-02-04T00:00:00.000Z",
               graded_at: "2026-02-05T00:00:00.000Z",
+              grade_matches_current_submission: true,
               late: false,
               missing: false,
             },
@@ -234,6 +235,7 @@ describe("createCanvasGradebookProvider", () => {
               score: 96.5,
               submitted_at: "2026-02-04T00:00:00.000Z",
               graded_at: "2026-02-05T00:00:00.000Z",
+              grade_matches_current_submission: true,
               late: false,
               missing: false,
             },
@@ -241,7 +243,7 @@ describe("createCanvasGradebookProvider", () => {
         },
         {
           pathWithQuery:
-            "/api/v1/courses/course-42/enrollments?per_page=100&type%5B%5D=StudentEnrollment&student_ids%5B%5D=learner-11",
+            "/api/v1/courses/course-42/enrollments?per_page=100&type%5B%5D=StudentEnrollment&state%5B%5D=active&state%5B%5D=completed&user_id=learner-11",
           responseBody: [
             {
               user_id: 11,
@@ -336,6 +338,7 @@ describe("createCanvasGradebookProvider", () => {
         score: 96.5,
         submittedAt: "2026-02-04T00:00:00.000Z",
         gradedAt: "2026-02-05T00:00:00.000Z",
+        gradeMatchesCurrentSubmission: true,
         late: false,
         missing: false,
       },
@@ -645,7 +648,7 @@ describe("createCanvasGradebookProvider", () => {
     const mockFetch = createRecordingMockFetch([
       {
         pathWithQuery:
-          "/api/v1/courses/course-42/enrollments?per_page=100&type%5B%5D=StudentEnrollment&student_ids%5B%5D=11",
+          "/api/v1/courses/course-42/enrollments?per_page=100&type%5B%5D=StudentEnrollment&state%5B%5D=active&state%5B%5D=completed&user_id=11",
         responseBody: [
           {
             user_id: 11,
@@ -675,6 +678,7 @@ describe("createCanvasGradebookProvider", () => {
             workflow_state: "graded",
             score: 96.5,
             graded_at: "2026-02-05T00:00:00.000Z",
+            grade_matches_current_submission: true,
             missing: false,
           },
         ],
@@ -708,6 +712,7 @@ describe("createCanvasGradebookProvider", () => {
         score: 96.5,
         submittedAt: null,
         gradedAt: "2026-02-05T00:00:00.000Z",
+        gradeMatchesCurrentSubmission: true,
         late: null,
         missing: false,
       },
@@ -731,7 +736,7 @@ describe("createCanvasGradebookProvider", () => {
     const mockFetch = createRecordingMockFetch([
       {
         pathWithQuery:
-          "/api/v1/courses/course-42/users?per_page=100&enrollment_type%5B%5D=student&enrollment_state%5B%5D=active",
+          "/api/v1/courses/course-42/users?per_page=100&enrollment_type%5B%5D=student&enrollment_state%5B%5D=active&enrollment_state%5B%5D=completed",
         responseBody: [
           {
             id: 11,

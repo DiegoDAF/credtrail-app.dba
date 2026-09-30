@@ -2,6 +2,7 @@ import type {
   BadgeIssuanceRuleCondition,
   BadgeIssuanceRuleDefinition,
 } from "@credtrail/validation";
+import { factsForBadgeRenewal } from "./badge-renewal";
 
 export interface BadgeIssuanceRuleGradeFact {
   evidenceFrom?: string | null | undefined;
@@ -21,6 +22,7 @@ export interface BadgeIssuanceRuleCompletionFact {
 
 export interface BadgeIssuanceRuleSubmissionFact {
   gradedAt?: string | null | undefined;
+  gradeMatchesCurrentSubmission?: boolean | null | undefined;
   courseId: string;
   assignmentId: string;
   learnerId: string;
@@ -545,9 +547,10 @@ const evaluatePredicate = (
 const evaluateCondition = (
   condition: BadgeIssuanceRuleCondition,
   facts: BadgeIssuanceRuleEvaluationFacts,
+  exclusionFacts: BadgeIssuanceRuleEvaluationFacts = facts,
 ): BadgeIssuanceRuleEvaluationNode => {
   if ("all" in condition) {
-    const children = condition.all.map((child) => evaluateCondition(child, facts));
+    const children = condition.all.map((child) => evaluateCondition(child, facts, exclusionFacts));
     const matched = children.every((child) => child.matched);
 
     return {
@@ -559,7 +562,7 @@ const evaluateCondition = (
   }
 
   if ("any" in condition) {
-    const children = condition.any.map((child) => evaluateCondition(child, facts));
+    const children = condition.any.map((child) => evaluateCondition(child, facts, exclusionFacts));
     const matched = children.some((child) => child.matched);
 
     return {
@@ -571,7 +574,8 @@ const evaluateCondition = (
   }
 
   if ("not" in condition) {
-    const child = evaluateCondition(condition.not, facts);
+    // An exclusion (including its nested expressions) keeps all current evidence.
+    const child = evaluateCondition(condition.not, exclusionFacts);
 
     return {
       type: "not",
@@ -594,6 +598,20 @@ export const evaluateBadgeIssuanceRuleDefinition = (
     matched: tree.matched,
     tree,
   };
+};
+
+/** Requires fresh training in each qualifying branch without erasing existing exclusions. */
+export const evaluateBadgeIssuanceRuleRenewal = (
+  definition: BadgeIssuanceRuleDefinition,
+  facts: BadgeIssuanceRuleEvaluationFacts,
+  previousIssuedAt: string,
+): BadgeIssuanceRuleEvaluationResult => {
+  const tree = evaluateCondition(
+    definition.conditions,
+    factsForBadgeRenewal(facts, previousIssuedAt),
+    facts,
+  );
+  return { matched: tree.matched, tree };
 };
 
 export const summarizeBadgeIssuanceRuleEvaluation = (

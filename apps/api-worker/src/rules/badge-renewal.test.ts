@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseBadgeIssuanceRuleDefinition } from "@credtrail/validation";
-import { badgeRenewalValidUntil, factsForBadgeRenewal } from "./badge-renewal";
-import {
-  evaluateBadgeIssuanceRuleDefinition,
-  type BadgeIssuanceRuleEvaluationFacts,
-} from "./engine";
+import { badgeRenewalValidUntil } from "./badge-renewal";
+import { evaluateBadgeIssuanceRuleRenewal, type BadgeIssuanceRuleEvaluationFacts } from "./engine";
 
 describe("annual training policy", () => {
   it("preserves the award time and clamps leap-day and month-end renewal dates", () => {
@@ -56,28 +53,68 @@ describe("annual training policy", () => {
       ],
     };
     const evaluate = (evidenceFrom: string | null) =>
-      evaluateBadgeIssuanceRuleDefinition(
+      evaluateBadgeIssuanceRuleRenewal(
         definition,
-        factsForBadgeRenewal(
-          {
-            ...facts,
-            completions: [
-              ...facts.completions,
-              {
-                courseId: "new",
-                learnerId: "student",
-                completed: true,
-                completionPercent: 100,
-                evidenceFrom,
-              },
-            ],
-          },
-          "2025-06-01T00:00:00.000Z",
-        ),
+        {
+          ...facts,
+          completions: [
+            ...facts.completions,
+            {
+              courseId: "new",
+              learnerId: "student",
+              completed: true,
+              completionPercent: 100,
+              evidenceFrom,
+            },
+          ],
+        },
+        "2025-06-01T00:00:00.000Z",
       ).matched;
     expect(evaluate(null)).toBe(false);
     expect(evaluate("2025-05-01T00:00:00.000Z")).toBe(false);
     expect(evaluate("2026-10-01T00:00:00.000Z")).toBe(false);
     expect(evaluate("2026-08-01T00:00:00.000Z")).toBe(true);
+  });
+
+  it("preserves nested exclusions while still requiring the positive training to be new", () => {
+    const completion = (courseId: string) => ({
+      type: "course_completion",
+      courseId,
+      minCompletionPercent: 100,
+    });
+    const definition = parseBadgeIssuanceRuleDefinition({
+      conditions: {
+        all: [
+          completion("training"),
+          { not: { all: [completion("excluded"), { not: completion("override") }] } },
+        ],
+      },
+      options: { renewal: {} },
+    });
+    const evaluate = (hasOverride: boolean, trainingDate: string) => {
+      const facts: BadgeIssuanceRuleEvaluationFacts = {
+        learnerId: "student",
+        nowIso: "2026-09-01T00:00:00.000Z",
+        grades: [],
+        submissions: [],
+        surveyCompletions: [],
+        customFields: [],
+        earnedBadgeTemplateIds: [],
+        completions: ["training", "excluded", ...(hasOverride ? ["override"] : [])].map(
+          (courseId) => ({
+            courseId,
+            learnerId: "student",
+            completed: true,
+            completionPercent: 100,
+            evidenceFrom: courseId === "training" ? trainingDate : "2025-01-01T00:00:00.000Z",
+          }),
+        ),
+      };
+      return evaluateBadgeIssuanceRuleRenewal(definition, facts, "2025-06-01T00:00:00.000Z")
+        .matched;
+    };
+    expect(evaluate(false, "2026-08-01T00:00:00.000Z")).toBe(false);
+    expect(evaluate(true, "2026-08-01T00:00:00.000Z")).toBe(true);
+    expect(evaluate(true, "2025-01-01T00:00:00.000Z")).toBe(false);
   });
 });

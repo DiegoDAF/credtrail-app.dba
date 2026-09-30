@@ -12,7 +12,7 @@ export const badgeRenewalValidUntil = (issuedAt: string, intervalMonths: number)
   return date.toISOString();
 };
 
-/** Removes evidence from the previous certification period before evaluating the same rule. */
+/** Keeps new training evidence for positive renewal requirements; exclusions use the original facts. */
 export const factsForBadgeRenewal = (
   facts: BadgeIssuanceRuleEvaluationFacts,
   previousIssuedAt: string,
@@ -31,6 +31,7 @@ export const factsForBadgeRenewal = (
       .map((fact) => ({
         ...fact,
         score:
+          fact.gradeMatchesCurrentSubmission === true &&
           fact.gradedAt !== null &&
           fact.gradedAt !== undefined &&
           fact.submittedAt !== null &&

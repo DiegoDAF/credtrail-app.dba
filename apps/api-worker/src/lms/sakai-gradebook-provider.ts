@@ -941,6 +941,7 @@ export const createSakaiGradebookProvider = (
             learnerId: student.learnerId,
             workflowState: grade.workflowState,
             score: asNumber(grade.grade),
+            gradeMatchesCurrentSubmission: null,
             // Grade edits also change dateRecorded; it cannot prove a new attempt.
             submittedAt: null,
             gradedAt: grade.recordedAt,

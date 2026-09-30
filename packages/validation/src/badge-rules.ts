@@ -529,6 +529,7 @@ const badgeIssuanceRuleFactSubmissionSchema = z.object({
   workflowState: z.string().trim().min(1).max(64).nullable().optional(),
   submittedAt: isoTimestampSchema.nullable().optional(),
   gradedAt: isoTimestampSchema.nullable().optional(),
+  gradeMatchesCurrentSubmission: z.boolean().nullable().optional(),
 });
 
 const badgeIssuanceRuleFactSurveyCompletionSchema = z.object({

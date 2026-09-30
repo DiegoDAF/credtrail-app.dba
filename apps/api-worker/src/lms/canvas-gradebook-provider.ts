@@ -210,6 +210,7 @@ const parseSubmissionRecord = (
     assignmentId,
     workflowState: asString(submission.workflow_state),
     score: asNumber(submission.score),
+    gradeMatchesCurrentSubmission: asBoolean(submission.grade_matches_current_submission),
     submittedAt: asIsoTimestamp(submission.submitted_at),
     gradedAt: asIsoTimestamp(submission.graded_at),
     late: asBoolean(submission.late),
@@ -313,6 +314,7 @@ const parseCompletionRecord = (
         return (
           submission !== undefined &&
           submission.score !== null &&
+          submission.gradeMatchesCurrentSubmission === true &&
           submission.submittedAt !== null &&
           submission.gradedAt !== null &&
           Date.parse(submission.gradedAt) >= Date.parse(submission.submittedAt)
@@ -403,9 +405,11 @@ export const createCanvasGradebookProvider = (
       const query = new URLSearchParams();
       query.set("per_page", "100");
       query.append("type[]", "StudentEnrollment");
+      query.append("state[]", "active");
+      query.append("state[]", "completed");
 
       if (input.learnerId !== undefined) {
-        query.append("student_ids[]", input.learnerId);
+        query.set("user_id", input.learnerId);
       }
 
       return requestArray(
@@ -590,6 +594,7 @@ export const createCanvasGradebookProvider = (
       query.set("per_page", "100");
       query.append("enrollment_type[]", "student");
       query.append("enrollment_state[]", "active");
+      query.append("enrollment_state[]", "completed");
       const users = await requestArray(
         `/api/v1/courses/${encodeURIComponent(input.courseId)}/users`,
         query,

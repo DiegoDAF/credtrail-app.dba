@@ -8,7 +8,11 @@ import {
   recordAssertionLifecycleTransition,
   listLearnerBadgeSummaries,
 } from "@credtrail/db";
-import { parseBadgeIssuanceRuleDefinition, parseQueueJob } from "@credtrail/validation";
+import {
+  parseBadgeIssuanceRuleDefinition,
+  parseQueueJob,
+  type BadgeIssuanceRuleCondition,
+} from "@credtrail/validation";
 import {
   cleanupTestResources,
   createBadgeRuleIntegrationFixture,
@@ -18,6 +22,7 @@ import { createTestBadgeIssuanceRule } from "../../../../packages/db/src/badge-i
 import { createIssueBadgeForTenant } from "./direct-issue";
 import { storeBadgeTemplateImage, badgeTemplateImagePublicPath } from "./template-image-storage";
 import { processAutomatedBadgeRule } from "./automated-badge-rule-processor";
+import { createCanvasGradebookProvider } from "../lms/canvas-gradebook-provider";
 import { evaluateBadgeRuleLearner } from "../rules/badge-rule-learner-evaluator";
 import type { GradebookAutomatedEvaluationReader } from "../lms/gradebook-types";
 import { badgeAwardIdempotencyKey } from "./badge-award-identity";
@@ -59,7 +64,7 @@ const memoryStore = (): ImmutableCredentialStore => {
   };
 };
 
-const scenario = async (manual = false) => {
+const scenario = async (manual = false, conditions?: BadgeIssuanceRuleCondition) => {
   const fixture = await createBadgeRuleIntegrationFixture();
   const store = memoryStore();
   const ids = {
@@ -78,17 +83,19 @@ const scenario = async (manual = false) => {
     .bind(`https://credtrail.org${badgeTemplateImagePublicPath(ids)}`, fixture.badgeTemplateId)
     .run();
   const definition = parseBadgeIssuanceRuleDefinition({
-    conditions: manual
-      ? {
-          type: "instructor_confirmation",
-          instructions: "Confirm the learner completed this year's training.",
-        }
-      : {
-          type: "assignment_submission",
-          courseId: "training",
-          assignmentId: "assessment",
-          minScore: 80,
-        },
+    conditions:
+      conditions ??
+      (manual
+        ? {
+            type: "instructor_confirmation",
+            instructions: "Confirm the learner completed this year's training.",
+          }
+        : {
+            type: "assignment_submission",
+            courseId: "training",
+            assignmentId: "assessment",
+            minScore: 80,
+          }),
     options: { issuanceTiming: manual ? "manual" : "immediate", renewal: { intervalMonths: 12 } },
   });
   const created = await createTestBadgeIssuanceRule(fixture.db, {
@@ -163,6 +170,7 @@ const scenario = async (manual = false) => {
           score,
           submittedAt,
           gradedAt,
+          gradeMatchesCurrentSubmission: true,
           missing: false,
           late: false,
         },
@@ -174,6 +182,7 @@ const scenario = async (manual = false) => {
     submittedAt: string,
     evaluatedAt: string,
     previousId?: string,
+    gradebookProvider: GradebookAutomatedEvaluationReader = provider(submittedAt),
   ): Promise<DirectIssueBadgeRequest> => {
     const result = await evaluateBadgeRuleLearner({
       db: fixture.db,
@@ -183,7 +192,7 @@ const scenario = async (manual = false) => {
       recipientEmail: email,
       definition,
       nowIso: evaluatedAt,
-      gradebookProvider: provider(submittedAt),
+      gradebookProvider,
     });
     if (result.status !== "evaluated") throw new Error("Expected evaluation");
     return {
@@ -224,6 +233,218 @@ const scenario = async (manual = false) => {
 };
 
 describeDbIntegration("rolling badge renewals", () => {
+  it.each<{ kind: string; conditions: BadgeIssuanceRuleCondition }>([
+    {
+      kind: "assignment score",
+      conditions: {
+        type: "assignment_submission",
+        courseId: "training",
+        assignmentId: "assessment",
+        minScore: 80,
+      },
+    },
+    {
+      kind: "course grade",
+      conditions: { type: "grade_threshold", courseId: "training", minScore: 80 },
+    },
+  ])("checks the graded attempt for a completed Canvas learner's $kind", async ({ conditions }) => {
+    const s = await scenario(false, conditions);
+    try {
+      const now = new Date().toISOString();
+      const submittedAt = "2026-01-01T00:00:00.000Z";
+      const provider = (
+        matches: boolean | null | undefined,
+        attemptDate = submittedAt,
+      ): GradebookAutomatedEvaluationReader =>
+        createCanvasGradebookProvider({
+          config: { kind: "canvas", apiBaseUrl: "https://canvas.example.edu", accessToken: "test" },
+          fetchImpl: async (input) => {
+            const url = new URL(input instanceof Request ? input.url : input);
+            if (url.pathname.endsWith("/users")) {
+              return Response.json(
+                url.searchParams.getAll("enrollment_state[]").includes("completed")
+                  ? [{ id: "student", name: "Learner", email: s.email }]
+                  : [],
+              );
+            }
+            if (url.pathname.endsWith("/enrollments")) {
+              return Response.json(
+                url.searchParams.getAll("state[]").includes("completed") &&
+                  url.searchParams.get("user_id") === "student"
+                  ? [
+                      {
+                        user_id: "student",
+                        enrollment_state: "completed",
+                        type: "StudentEnrollment",
+                        grades: { final_score: 95 },
+                      },
+                    ]
+                  : [],
+              );
+            }
+            if (url.pathname.endsWith("/assignments")) {
+              return Response.json([
+                {
+                  id: "assessment",
+                  name: "Training assessment",
+                  published: true,
+                  points_possible: 100,
+                },
+              ]);
+            }
+            const body = url.pathname.endsWith("/students/submissions")
+              ? [
+                  {
+                    user_id: "student",
+                    assignment_id: "assessment",
+                    attempt: 2,
+                    score: 95,
+                    workflow_state: "submitted",
+                    submitted_at: attemptDate,
+                    // Canvas also refreshes this date when a late policy changes.
+                    graded_at: new Date(Date.parse(attemptDate) + 86400000).toISOString(),
+                    ...(matches === undefined ? {} : { grade_matches_current_submission: matches }),
+                  },
+                ]
+              : [];
+            return Response.json(body);
+          },
+        });
+      const firstDate = "2020-01-01T00:00:00.000Z";
+      const firstIssuedAt = "2020-01-02T00:00:00.000Z";
+      const first = await s.issueAt(
+        await s.requestFor(firstDate, firstIssuedAt, undefined, provider(true, firstDate)),
+        firstIssuedAt,
+      );
+      for (const matches of [false, null, undefined, true]) {
+        const gradebookProvider = provider(matches);
+        const evaluation = await processAutomatedBadgeRule({
+          db: s.db,
+          tenantId: s.tenantId,
+          payload: {
+            ruleId: s.created.rule.id,
+            versionId: s.created.version.id,
+            scheduledFor: now,
+          },
+          sha256Hex,
+          gradebookProvider,
+        });
+        expect(evaluation).toMatchObject({ issueJobsEnqueued: matches === true ? 1 : 0 });
+        // Deliver serialized evidence separately so the final issuance guard is also exercised.
+        const request = await s.requestFor(submittedAt, now, first.assertionId, gradebookProvider);
+        const [delivery] = await Promise.allSettled([s.issueAt(request, now)]);
+        const missingEvidence = expect.stringContaining("new training completion");
+        expect(delivery).toMatchObject(
+          matches === true
+            ? { status: "fulfilled", value: { status: "issued" } }
+            : {
+                status: "rejected",
+                reason: { message: missingEvidence },
+              },
+        );
+      }
+    } finally {
+      await s.dispose();
+    }
+  });
+
+  it("keeps exclusions inside alternatives during evaluation and final renewal issuance", async () => {
+    const s = await scenario(false, {
+      any: [
+        {
+          all: [
+            {
+              type: "assignment_submission",
+              courseId: "training",
+              assignmentId: "assessment",
+              minScore: 80,
+            },
+            { not: { type: "course_completion", courseId: "excluded", minCompletionPercent: 100 } },
+          ],
+        },
+        {
+          type: "assignment_submission",
+          courseId: "training",
+          assignmentId: "alternative",
+          minScore: 80,
+        },
+      ],
+    });
+    try {
+      const first = await s.issueAt(
+        await s.requestFor("2020-01-01T00:00:00.000Z", "2020-01-02T00:00:00.000Z"),
+        "2020-01-02T00:00:00.000Z",
+      );
+      const now = new Date().toISOString();
+      const freshDate = "2026-01-01T00:00:00.000Z";
+      const oldDate = "2019-01-01T00:00:00.000Z";
+      const provider = (alternativeDate: string): GradebookAutomatedEvaluationReader => ({
+        ...s.provider(freshDate),
+        listCompletions: ({ courseId }) =>
+          Promise.resolve(
+            courseId === "excluded"
+              ? [
+                  {
+                    courseId,
+                    learnerId: "student",
+                    completed: true,
+                    completionPercent: 100,
+                    completedAt: oldDate,
+                    evidenceFrom: oldDate,
+                    sourceState: "gradebook_items",
+                  },
+                ]
+              : [],
+          ),
+        listSubmissions: ({ courseId, assignmentId }) => {
+          const submittedAt = assignmentId === "alternative" ? alternativeDate : freshDate;
+          return Promise.resolve([
+            {
+              courseId,
+              assignmentId: assignmentId ?? "assessment",
+              learnerId: "student",
+              score: 95,
+              workflowState: "graded",
+              submittedAt,
+              gradedAt: submittedAt,
+              gradeMatchesCurrentSubmission: true,
+              missing: false,
+              late: false,
+            },
+          ]);
+        },
+      });
+      for (const alternativeDate of [oldDate, freshDate]) {
+        const gradebookProvider = provider(alternativeDate);
+        const result = await processAutomatedBadgeRule({
+          db: s.db,
+          tenantId: s.tenantId,
+          payload: {
+            ruleId: s.created.rule.id,
+            versionId: s.created.version.id,
+            scheduledFor: now,
+          },
+          sha256Hex,
+          gradebookProvider,
+        });
+        expect(result).toMatchObject({ issueJobsEnqueued: alternativeDate === freshDate ? 1 : 0 });
+        const request = await s.requestFor(freshDate, now, first.assertionId, gradebookProvider);
+        const [delivery] = await Promise.allSettled([s.issueAt(request, now)]);
+        const missingEvidence = expect.stringContaining("new training completion");
+        expect(delivery).toMatchObject(
+          alternativeDate === freshDate
+            ? { status: "fulfilled", value: { status: "issued" } }
+            : {
+                status: "rejected",
+                reason: { message: missingEvidence },
+              },
+        );
+      }
+    } finally {
+      await s.dispose();
+    }
+  });
+
   it("signs expiry, rejects stale evidence, preserves history and awards once per new completion", async () => {
     const s = await scenario();
     try {
