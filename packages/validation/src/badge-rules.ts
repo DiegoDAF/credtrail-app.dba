@@ -229,23 +229,10 @@ export const badgeIssuanceRuleDefinitionOptionsSchema = z.object({
   renewal: z.object({ intervalMonths: z.number().int().min(1).max(120).default(12) }).optional(),
 });
 
-/** Returns the single instructor-confirmed requirement, without an LMS course binding. */
-export const badgeRuleInstructorConfirmation = (
-  condition: BadgeIssuanceRuleCondition,
-): z.infer<typeof badgeIssuanceRuleInstructorConfirmationConditionSchema> | null => {
-  if ("type" in condition) {
-    return condition.type === "instructor_confirmation" ? condition : null;
-  }
-  if ("all" in condition && condition.all.length === 1 && condition.all[0] !== undefined) {
-    return badgeRuleInstructorConfirmation(condition.all[0]);
-  }
-  return null;
-};
-
-const containsInstructorConfirmation = (condition: BadgeIssuanceRuleCondition): boolean => {
-  if ("all" in condition) return condition.all.some(containsInstructorConfirmation);
-  if ("any" in condition) return condition.any.some(containsInstructorConfirmation);
-  if ("not" in condition) return containsInstructorConfirmation(condition.not);
+const requiresManualIssuance = (condition: BadgeIssuanceRuleCondition): boolean => {
+  if ("all" in condition) return condition.all.some(requiresManualIssuance);
+  if ("any" in condition) return condition.any.some(requiresManualIssuance);
+  if ("not" in condition) return requiresManualIssuance(condition.not);
   return condition.type === "instructor_confirmation";
 };
 
@@ -289,16 +276,10 @@ export const badgeIssuanceRuleDefinitionSchema = z
           "Every way to earn a renewable badge must require new training, a new submission, or instructor confirmation.",
       });
     }
-    if (!containsInstructorConfirmation(definition.conditions)) return;
-    if (badgeRuleInstructorConfirmation(definition.conditions) === null) {
-      context.addIssue({
-        code: "custom",
-        path: ["conditions"],
-        message:
-          "Use instructor confirmation as the only requirement, without exclusions or alternative conditions.",
-      });
-    }
-    if (definition.options?.issuanceTiming !== "manual") {
+    if (
+      requiresManualIssuance(definition.conditions) &&
+      definition.options?.issuanceTiming !== "manual"
+    ) {
       context.addIssue({
         code: "custom",
         path: ["options", "issuanceTiming"],
@@ -505,10 +486,34 @@ export const reopenApprovedBadgeIssuanceRuleVersionRequestSchema = z
   })
   .strict();
 
+/** Normalized evidence for one required training attempt, without renewal policy. */
+export const badgeIssuanceRuleTrainingAttemptSchema = z.object({
+  submittedAt: isoTimestampSchema.nullable(),
+  gradedAt: isoTimestampSchema.nullable(),
+  gradeMatchesCurrentSubmission: z.boolean().nullable(),
+  score: z.number().finite().nullable(),
+});
+
+/** An instructor's explicit confirmation of one published requirement. */
+export const badgeIssuanceRuleInstructorConfirmationFactSchema = z.object({
+  confirmedByUserId: z.string().trim().min(1).max(255),
+  confirmedAt: isoTimestampSchema,
+  instructions: z.string().trim().min(1).max(2000),
+});
+
+/** Parsed attempt evidence shared by LMS adapters and the rule evaluator. */
+export type BadgeIssuanceRuleTrainingAttempt = z.infer<
+  typeof badgeIssuanceRuleTrainingAttemptSchema
+>;
+/** Parsed confirmation of a published instruction at a known time. */
+export type BadgeIssuanceRuleInstructorConfirmationFact = z.infer<
+  typeof badgeIssuanceRuleInstructorConfirmationFactSchema
+>;
+
 const badgeIssuanceRuleFactGradeSchema = z.object({
   courseId: z.string().trim().min(1).max(255),
   learnerId: z.string().trim().min(1).max(255),
-  evidenceFrom: isoTimestampSchema.nullable().optional(),
+  trainingAttempts: z.array(badgeIssuanceRuleTrainingAttemptSchema).nullable().optional(),
   currentScore: z.number().finite().nullable().optional(),
   finalScore: z.number().finite().nullable().optional(),
 });
@@ -516,7 +521,7 @@ const badgeIssuanceRuleFactGradeSchema = z.object({
 const badgeIssuanceRuleFactCompletionSchema = z.object({
   courseId: z.string().trim().min(1).max(255),
   learnerId: z.string().trim().min(1).max(255),
-  evidenceFrom: isoTimestampSchema.nullable().optional(),
+  trainingAttempts: z.array(badgeIssuanceRuleTrainingAttemptSchema).nullable().optional(),
   completed: z.boolean(),
   completionPercent: z.number().finite().nullable().optional(),
 });
@@ -547,6 +552,7 @@ const badgeIssuanceRuleFactCustomFieldSchema = z.object({
 });
 
 export const badgeIssuanceRuleFactsSchema = z.object({
+  instructorConfirmations: z.array(badgeIssuanceRuleInstructorConfirmationFactSchema).optional(),
   nowIso: isoTimestampSchema.optional(),
   grades: z.array(badgeIssuanceRuleFactGradeSchema).optional(),
   completions: z.array(badgeIssuanceRuleFactCompletionSchema).optional(),

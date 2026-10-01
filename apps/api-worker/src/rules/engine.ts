@@ -1,11 +1,13 @@
 import type {
   BadgeIssuanceRuleCondition,
   BadgeIssuanceRuleDefinition,
+  BadgeIssuanceRuleTrainingAttempt,
+  BadgeIssuanceRuleInstructorConfirmationFact,
 } from "@credtrail/validation";
 import { factsForBadgeRenewal } from "./badge-renewal";
 
 export interface BadgeIssuanceRuleGradeFact {
-  evidenceFrom?: string | null | undefined;
+  trainingAttempts?: readonly BadgeIssuanceRuleTrainingAttempt[] | null | undefined;
   courseId: string;
   learnerId: string;
   currentScore: number | null;
@@ -13,7 +15,7 @@ export interface BadgeIssuanceRuleGradeFact {
 }
 
 export interface BadgeIssuanceRuleCompletionFact {
-  evidenceFrom?: string | null | undefined;
+  trainingAttempts?: readonly BadgeIssuanceRuleTrainingAttempt[] | null | undefined;
   courseId: string;
   learnerId: string;
   completed: boolean;
@@ -50,6 +52,7 @@ export interface BadgeIssuanceRuleCustomFieldFact {
 export interface BadgeIssuanceRuleEvaluationFacts {
   learnerId: string;
   nowIso: string;
+  instructorConfirmations?: readonly BadgeIssuanceRuleInstructorConfirmationFact[] | undefined;
   grades: readonly BadgeIssuanceRuleGradeFact[];
   completions: readonly BadgeIssuanceRuleCompletionFact[];
   submissions: readonly BadgeIssuanceRuleSubmissionFact[];
@@ -59,6 +62,7 @@ export interface BadgeIssuanceRuleEvaluationFacts {
 }
 
 export interface BadgeIssuanceRuleRequirements {
+  instructorConfirmationInstructions: string[];
   courseIds: string[];
   assignmentRefs: {
     courseId: string;
@@ -78,6 +82,8 @@ export interface BadgeIssuanceRuleEvaluationNode {
 }
 
 export interface BadgeIssuanceRuleEvaluationResult {
+  /** The rule could match after an explicit confirmation; its actual tree still records missing evidence. */
+  canMatchWithInstructorConfirmation?: boolean;
   matched: boolean;
   tree: BadgeIssuanceRuleEvaluationNode;
 }
@@ -95,6 +101,7 @@ const assignmentKey = (input: { courseId: string; assignmentId: string }): strin
 export const extractBadgeIssuanceRuleRequirements = (
   definition: BadgeIssuanceRuleDefinition,
 ): BadgeIssuanceRuleRequirements => {
+  const instructorConfirmationInstructions = new Set<string>();
   const courseIds = new Set<string>();
   const assignmentRefs = new Map<string, { courseId: string; assignmentId: string }>();
   const surveyIds = new Set<string>();
@@ -159,6 +166,8 @@ export const extractBadgeIssuanceRuleRequirements = (
         }
         return;
       case "instructor_confirmation":
+        instructorConfirmationInstructions.add(condition.instructions);
+        return;
       case "time_window":
         return;
     }
@@ -167,6 +176,7 @@ export const extractBadgeIssuanceRuleRequirements = (
   collect(definition.conditions);
 
   return {
+    instructorConfirmationInstructions: Array.from(instructorConfirmationInstructions),
     courseIds: Array.from(courseIds).sort(),
     assignmentRefs: Array.from(assignmentRefs.values()),
     surveyIds: Array.from(surveyIds).sort(),
@@ -227,15 +237,25 @@ const evaluatePredicate = (
     | { not: BadgeIssuanceRuleCondition }
   >,
   facts: BadgeIssuanceRuleEvaluationFacts,
+  confirmationMode: "recorded" | "prospective",
 ): BadgeIssuanceRuleEvaluationNode => {
   switch (condition.type) {
-    case "instructor_confirmation":
+    case "instructor_confirmation": {
+      const matched =
+        confirmationMode === "prospective" ||
+        (facts.instructorConfirmations ?? []).some(
+          (fact) =>
+            fact.instructions === condition.instructions &&
+            fact.confirmedByUserId.trim().length > 0 &&
+            Date.parse(fact.confirmedAt) <= Date.parse(facts.nowIso),
+        );
       return {
         type: condition.type,
-        matched: false,
-        detail: "An instructor must confirm completion from an authorized course roster.",
-        resultKind: "missing_data",
+        matched,
+        detail: condition.instructions,
+        resultKind: matched ? "matched" : "missing_data",
       };
+    }
     case "grade_threshold": {
       const courseId = condition.courseId ?? "unknown course";
       const grade = facts.grades.find(
@@ -544,15 +564,19 @@ const evaluatePredicate = (
   }
 };
 
+interface RuleEvaluationContext {
+  readonly facts: BadgeIssuanceRuleEvaluationFacts;
+  readonly exclusionFacts: BadgeIssuanceRuleEvaluationFacts;
+  readonly confirmationMode: "recorded" | "prospective";
+}
+
 const evaluateCondition = (
   condition: BadgeIssuanceRuleCondition,
-  facts: BadgeIssuanceRuleEvaluationFacts,
-  exclusionFacts: BadgeIssuanceRuleEvaluationFacts = facts,
+  context: RuleEvaluationContext,
 ): BadgeIssuanceRuleEvaluationNode => {
   if ("all" in condition) {
-    const children = condition.all.map((child) => evaluateCondition(child, facts, exclusionFacts));
+    const children = condition.all.map((child) => evaluateCondition(child, context));
     const matched = children.every((child) => child.matched);
-
     return {
       type: "all",
       matched,
@@ -560,11 +584,9 @@ const evaluateCondition = (
       children,
     };
   }
-
   if ("any" in condition) {
-    const children = condition.any.map((child) => evaluateCondition(child, facts, exclusionFacts));
+    const children = condition.any.map((child) => evaluateCondition(child, context));
     const matched = children.some((child) => child.matched);
-
     return {
       type: "any",
       matched,
@@ -572,11 +594,9 @@ const evaluateCondition = (
       children,
     };
   }
-
   if ("not" in condition) {
     // An exclusion (including its nested expressions) keeps all current evidence.
-    const child = evaluateCondition(condition.not, exclusionFacts);
-
+    const child = evaluateCondition(condition.not, { ...context, facts: context.exclusionFacts });
     return {
       type: "not",
       matched: !child.matched,
@@ -584,35 +604,50 @@ const evaluateCondition = (
       children: [child],
     };
   }
-
-  return evaluatePredicate(condition, facts);
+  return evaluatePredicate(condition, context.facts, context.confirmationMode);
 };
 
-export const evaluateBadgeIssuanceRuleDefinition = (
+const evaluateRule = (
   definition: BadgeIssuanceRuleDefinition,
-  facts: BadgeIssuanceRuleEvaluationFacts,
+  context: RuleEvaluationContext,
+  confirmationCanBeFresh: boolean,
 ): BadgeIssuanceRuleEvaluationResult => {
-  const tree = evaluateCondition(definition.conditions, facts);
-
+  const tree = evaluateCondition(definition.conditions, context);
+  // Preview uses the same predicates and boolean expressions. Only the actual tree is saved as evidence.
+  const canConfirm =
+    !tree.matched &&
+    confirmationCanBeFresh &&
+    evaluateCondition(definition.conditions, { ...context, confirmationMode: "prospective" })
+      .matched;
   return {
     matched: tree.matched,
     tree,
+    ...(canConfirm ? { canMatchWithInstructorConfirmation: true } : {}),
   };
 };
+
+/** Evaluates recorded facts and identifies whether explicit confirmation could satisfy the rule. */
+export const evaluateBadgeIssuanceRuleDefinition = (
+  definition: BadgeIssuanceRuleDefinition,
+  facts: BadgeIssuanceRuleEvaluationFacts,
+): BadgeIssuanceRuleEvaluationResult =>
+  evaluateRule(definition, { facts, exclusionFacts: facts, confirmationMode: "recorded" }, true);
 
 /** Requires fresh training in each qualifying branch without erasing existing exclusions. */
 export const evaluateBadgeIssuanceRuleRenewal = (
   definition: BadgeIssuanceRuleDefinition,
   facts: BadgeIssuanceRuleEvaluationFacts,
   previousIssuedAt: string,
-): BadgeIssuanceRuleEvaluationResult => {
-  const tree = evaluateCondition(
-    definition.conditions,
-    factsForBadgeRenewal(facts, previousIssuedAt),
-    facts,
+): BadgeIssuanceRuleEvaluationResult =>
+  evaluateRule(
+    definition,
+    {
+      facts: factsForBadgeRenewal(facts, previousIssuedAt),
+      exclusionFacts: facts,
+      confirmationMode: "recorded",
+    },
+    Date.parse(facts.nowIso) > Date.parse(previousIssuedAt),
   );
-  return { matched: tree.matched, tree };
-};
 
 export const summarizeBadgeIssuanceRuleEvaluation = (
   evaluation: BadgeIssuanceRuleEvaluationResult,

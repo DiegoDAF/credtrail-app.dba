@@ -986,8 +986,7 @@ export const createSakaiGradebookProvider = (
             completed,
             // The gradebook reports grading dates, not training completion dates.
             completedAt: null,
-            evidenceFrom: null,
-            gradeEvidenceFrom: null,
+            trainingAttempts: null,
             completionPercent,
             sourceState: completionPercent === null ? null : "gradebook_items",
           };

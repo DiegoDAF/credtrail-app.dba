@@ -242,7 +242,7 @@ const parseGradeRecord = (courseId: string, candidate: unknown): GradebookGradeR
   };
 };
 
-const parseCompletionRecord = (
+const deriveCompletionRecord = (
   courseId: string,
   enrollment: GradebookEnrollmentRecord,
   assignments: readonly GradebookAssignmentRecord[],
@@ -284,44 +284,29 @@ const parseCompletionRecord = (
   }).length;
   const completionPercent = (completedItems / assignments.length) * 100;
 
-  const completionDates = assignments.map((assignment) => {
-    const submission = submissions.find(
-      (entry) =>
-        entry.learnerId === enrollment.learnerId &&
-        entry.assignmentId === assignment.assignmentId &&
-        entry.missing !== true,
-    );
-    // A grade edit must not make an old submission look like a new attempt.
-    return submission?.submittedAt ?? null;
+  const submissionsByAssignmentId = new Map(
+    submissions
+      .filter((entry) => entry.learnerId === enrollment.learnerId && entry.missing !== true)
+      .map((entry) => [entry.assignmentId, entry]),
+  );
+  const trainingAttempts = assignments.map((assignment) => {
+    const submission = submissionsByAssignmentId.get(assignment.assignmentId);
+    return {
+      submittedAt: submission?.submittedAt ?? null,
+      gradedAt: submission?.gradedAt ?? null,
+      gradeMatchesCurrentSubmission: submission?.gradeMatchesCurrentSubmission ?? null,
+      score: submission?.score ?? null,
+    };
   });
-  const datedCompletions = completionDates.filter((date): date is string => date !== null);
-  const evidenceFrom =
-    datedCompletions.length === assignments.length ? (datedCompletions.sort()[0] ?? null) : null;
+  const datedCompletions = trainingAttempts.flatMap((attempt) =>
+    attempt.submittedAt === null ? [] : [attempt.submittedAt],
+  );
   return {
     courseId,
     learnerId: enrollment.learnerId,
     completed: completionPercent >= 100,
     completedAt: completionPercent >= 100 ? (datedCompletions.sort().at(-1) ?? null) : null,
-    evidenceFrom,
-    gradeEvidenceFrom:
-      evidenceFrom !== null &&
-      assignments.every((assignment) => {
-        const submission = submissions.find(
-          (entry) =>
-            entry.learnerId === enrollment.learnerId &&
-            entry.assignmentId === assignment.assignmentId,
-        );
-        return (
-          submission !== undefined &&
-          submission.score !== null &&
-          submission.gradeMatchesCurrentSubmission === true &&
-          submission.submittedAt !== null &&
-          submission.gradedAt !== null &&
-          Date.parse(submission.gradedAt) >= Date.parse(submission.submittedAt)
-        );
-      })
-        ? evidenceFrom
-        : null,
+    trainingAttempts,
     completionPercent,
     sourceState: "gradebook_items",
   };
@@ -645,7 +630,7 @@ export const createCanvasGradebookProvider = (
         .filter((enrollment): enrollment is GradebookEnrollmentRecord => enrollment !== null);
       const normalizedCompletions = normalizedEnrollments
         .map((enrollment) =>
-          parseCompletionRecord(input.courseId, enrollment, assignments, submissions),
+          deriveCompletionRecord(input.courseId, enrollment, assignments, submissions),
         )
         .filter((completion): completion is GradebookCompletionRecord => completion !== null);
       return normalizedCompletions;

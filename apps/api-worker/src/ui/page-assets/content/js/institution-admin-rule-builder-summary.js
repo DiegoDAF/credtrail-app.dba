@@ -243,10 +243,11 @@ const syncRuleBuilderSummary = (statusOverride) => {
   const confirmationReview = document.getElementById("rule-builder-confirmation-review");
   if (evidenceTest instanceof HTMLElement) evidenceTest.hidden = confirmation !== null;
   if (confirmationReview instanceof HTMLElement) confirmationReview.hidden = confirmation === null;
+  const requiresConfirmation = currentRuleRequiresInstructorConfirmation();
   const timingField = getRuleCreateField("issuanceTiming");
   if (timingField instanceof HTMLSelectElement) {
-    timingField.disabled = confirmation !== null;
-    if (confirmation !== null) timingField.value = "manual";
+    timingField.disabled = requiresConfirmation;
+    if (requiresConfirmation) timingField.value = "manual";
   }
   if (confirmation !== null) ruleBuilderLastTestSummary = "Instructor confirmation required";
   ruleBuilderStepLabels.test = confirmation === null ? "Test and submit" : "Review and submit";

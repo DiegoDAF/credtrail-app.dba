@@ -570,22 +570,46 @@ describe("instructor-confirmed institutional rules", () => {
       }).conditions,
     ).toEqual({ all: [confirmation] });
   });
-  it("rejects automation, missing instructions, exclusions, and alternative conditions", () => {
+  it.each([
+    {
+      all: [
+        confirmation,
+        { type: "course_completion", courseId: "course", minCompletionPercent: 100 },
+      ],
+    },
+    {
+      any: [
+        confirmation,
+        { type: "assignment_submission", courseId: "course", assignmentId: "assessment" },
+      ],
+    },
+    {
+      all: [
+        confirmation,
+        {
+          not: {
+            type: "custom_field",
+            fieldName: "excluded",
+            operator: "equals",
+            expectedValue: true,
+          },
+        },
+      ],
+    },
+  ])("accepts confirmation composed with other requirements", (conditions) => {
+    expect(
+      parseBadgeIssuanceRuleDefinition({ conditions, options: { issuanceTiming: "manual" } })
+        .conditions,
+    ).toEqual(conditions);
+    expect(() =>
+      parseBadgeIssuanceRuleDefinition({ conditions, options: { issuanceTiming: "immediate" } }),
+    ).toThrow("manual issuance");
+  });
+  it("rejects automation and missing instructions", () => {
     for (const candidate of [
       { conditions: confirmation },
       { conditions: confirmation, options: { issuanceTiming: "immediate" } },
       { conditions: { ...confirmation, instructions: " " }, options: { issuanceTiming: "manual" } },
-      { conditions: { not: confirmation }, options: { issuanceTiming: "manual" } },
-      { conditions: { any: [confirmation] }, options: { issuanceTiming: "manual" } },
-      {
-        conditions: {
-          all: [
-            confirmation,
-            { type: "course_completion", courseId: "course", minCompletionPercent: 100 },
-          ],
-        },
-        options: { issuanceTiming: "manual" },
-      },
     ])
       expect(() => parseBadgeIssuanceRuleDefinition(candidate)).toThrow(Error);
   });

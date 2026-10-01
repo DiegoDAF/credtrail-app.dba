@@ -1,4 +1,3 @@
-import { instructorConfirmationEligibility } from "./instructor-confirmation";
 import {
   findActiveBadgeIssuanceRuleVersion,
   findBadgeIssuanceRuleById,
@@ -246,6 +245,13 @@ const eligibilityFromEvaluation = (
     };
   }
 
+  if (evaluation.canMatchWithInstructorConfirmation) {
+    return {
+      ...statusResult("eligible", primaryEvaluationDetail(evaluation.tree), true),
+      label: "Awaiting confirmation",
+    };
+  }
+
   const summary = evaluationSummary;
   const detail = primaryEvaluationDetail(evaluation.tree);
 
@@ -281,6 +287,14 @@ export const ltiRosterRenewalIsDue = (
   issuedState?.lifecycleState === "expired" &&
   prepared?.status === "ready" &&
   prepared.definition.options?.renewal !== undefined;
+
+const eligibilityForUnresolvedRule = (
+  issuedState: LtiRosterIssuedBadgeStateForEligibility | null,
+  resolution: Exclude<LtiRosterEligibilityRuleResolution, { status: "resolved" }>,
+): LtiRosterEligibilityResult =>
+  issuedState !== null && !ltiRosterRenewalIsDue(issuedState, null)
+    ? alreadyIssuedEligibilityResult(issuedState)
+    : rosterMemberEligibilityFromRuleResolution(resolution);
 
 const renewalEligibility = (
   result: LtiRosterEligibilityResult,
@@ -350,18 +364,11 @@ const evaluateLtiRosterMemberEligibilityWithPreparedContext = async (input: {
     return statusResult("rule_pending", LTI_ROSTER_NO_RULE_LINKED_DETAIL, false);
   }
 
-  const confirmation = instructorConfirmationEligibility({
-    prepared: input.prepared,
-    learnerId: input.member.userId,
-    nowIso: input.nowIso,
-    confirmedByUserId: input.confirmedByUserId,
-  });
-  if (confirmation !== null) return renewalEligibility(confirmation, input.issuedState);
-
   const result = await input.evaluateLearner({
     ltiUserId: input.member.userId,
     recipientEmail: input.member.email,
     previousIssuedAt: input.issuedState?.issuedAt,
+    confirmedByUserId: input.confirmedByUserId,
   });
 
   if (result.status === "unavailable") {
@@ -386,12 +393,8 @@ export const evaluateLtiRosterMemberEligibility = async (input: {
   nowIso: string;
   gradebookProvider?: GradebookAutomatedEvaluationReader | undefined;
 }): Promise<LtiRosterEligibilityResult> => {
-  if (input.issuedState !== null && input.issuedState.lifecycleState !== "expired") {
-    return alreadyIssuedEligibilityResult(input.issuedState);
-  }
-
   if (input.ruleResolution.status !== "resolved") {
-    return rosterMemberEligibilityFromRuleResolution(input.ruleResolution);
+    return eligibilityForUnresolvedRule(input.issuedState, input.ruleResolution);
   }
 
   const prepared = await prepareLtiRosterEligibilityEvaluationContext({
@@ -421,17 +424,15 @@ export const evaluateLtiRosterMembersEligibility = async (input: {
   gradebookProvider?: GradebookAutomatedEvaluationReader | undefined;
 }): Promise<Map<string, LtiRosterEligibilityResult>> => {
   if (input.ruleResolution.status !== "resolved") {
-    const unresolvedResult = rosterMemberEligibilityFromRuleResolution(input.ruleResolution);
-
+    const resolution = input.ruleResolution;
     return new Map(
-      input.members.map((member) => {
-        const issuedState = input.issuedStatesByUserId.get(member.userId) ?? null;
-
-        return [
-          member.userId,
-          issuedState === null ? unresolvedResult : alreadyIssuedEligibilityResult(issuedState),
-        ] as const;
-      }),
+      input.members.map((member) => [
+        member.userId,
+        eligibilityForUnresolvedRule(
+          input.issuedStatesByUserId.get(member.userId) ?? null,
+          resolution,
+        ),
+      ]),
     );
   }
 

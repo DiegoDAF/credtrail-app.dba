@@ -5,11 +5,29 @@ const instructorConfirmationRequirement = (condition) => {
     return instructorConfirmationRequirement(condition.all[0]);
   return null;
 };
+const containsInstructorConfirmationRequirement = (condition) => {
+  if (!condition || typeof condition !== "object") return false;
+  if (Array.isArray(condition.all))
+    return condition.all.some(containsInstructorConfirmationRequirement);
+  if (Array.isArray(condition.any))
+    return condition.any.some(containsInstructorConfirmationRequirement);
+  if (condition.not) return containsInstructorConfirmationRequirement(condition.not);
+  return condition.type === "instructor_confirmation";
+};
+
 const currentInstructorConfirmationRequirement = () => {
   try {
     return instructorConfirmationRequirement(parseDefinitionJson().conditions);
   } catch {
     return null;
+  }
+};
+
+const currentRuleRequiresInstructorConfirmation = () => {
+  try {
+    return containsInstructorConfirmationRequirement(parseDefinitionJson().conditions);
+  } catch {
+    return false;
   }
 };
 
@@ -28,10 +46,6 @@ const readConditionFromCard = (card, strict) => {
     const instructions = readFieldFromCard(card, "instructions");
     if (strict && instructions.length === 0)
       throw new Error("Describe what the instructor must confirm before issuing.");
-    if (negate)
-      throw new Error(
-        "Instructor confirmation cannot exclude learners. Clear the exclusion option.",
-      );
     condition = { type: "instructor_confirmation", instructions };
   } else if (conditionType === "course_completion") {
     const courseId = readFieldFromCard(card, "courseId");
@@ -271,9 +285,9 @@ const withRuleBuilderDefinitionOptions = (definition) => {
     options: {
       ...existingOptions,
       ...readRuleBuilderDefinitionOptions(),
-      ...(instructorConfirmationRequirement(definition.conditions) === null
-        ? {}
-        : { issuanceTiming: "manual" }),
+      ...(containsInstructorConfirmationRequirement(definition.conditions)
+        ? { issuanceTiming: "manual" }
+        : {}),
     },
   };
 };
@@ -311,15 +325,6 @@ const readDefinitionFromBuilder = (strict) => {
 
   const conditions = cards.map((card) => readConditionFromCard(card, strict));
   const rootLogic = getRuleBuilderRootLogic();
-  if (
-    strict &&
-    conditions.some((condition) => condition.type === "instructor_confirmation") &&
-    (conditions.length !== 1 || rootLogic !== "all")
-  ) {
-    throw new Error(
-      "Use instructor confirmation as the only requirement, without alternative conditions.",
-    );
-  }
 
   return withRuleBuilderDefinitionOptions({
     conditions: rootLogic === "any" ? { any: conditions } : { all: conditions },

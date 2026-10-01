@@ -361,8 +361,14 @@ describe("createCanvasGradebookProvider", () => {
         learnerId: "11",
         completed: true,
         completedAt: "2026-02-04T00:00:00.000Z",
-        evidenceFrom: "2026-02-04T00:00:00.000Z",
-        gradeEvidenceFrom: "2026-02-04T00:00:00.000Z",
+        trainingAttempts: [
+          {
+            submittedAt: "2026-02-04T00:00:00.000Z",
+            gradedAt: "2026-02-05T00:00:00.000Z",
+            gradeMatchesCurrentSubmission: true,
+            score: 96.5,
+          },
+        ],
         completionPercent: 100,
         sourceState: "gradebook_items",
       },
@@ -371,8 +377,9 @@ describe("createCanvasGradebookProvider", () => {
         learnerId: "12",
         completed: false,
         completedAt: null,
-        evidenceFrom: null,
-        gradeEvidenceFrom: null,
+        trainingAttempts: [
+          { submittedAt: null, gradedAt: null, gradeMatchesCurrentSubmission: null, score: null },
+        ],
         completionPercent: 0,
         sourceState: "gradebook_items",
       },

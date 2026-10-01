@@ -184,7 +184,6 @@ describe("LTI roster eligibility", () => {
       label: "Already issued",
       eligibleForIssuance: false,
     });
-    expect(mockedFindBadgeIssuanceRuleById).not.toHaveBeenCalled();
   });
 
   it("prepares rule context once for roster batch evaluation", async () => {
@@ -235,7 +234,6 @@ describe("LTI roster eligibility", () => {
     expect(eligibilityByUserId.get("learner-001")).toMatchObject({
       status: "already_issued",
     });
-    expect(mockedFindBadgeIssuanceRuleById).not.toHaveBeenCalled();
   });
 
   it("uses provider-agnostic roster loaded messaging when evidence is unavailable", () => {

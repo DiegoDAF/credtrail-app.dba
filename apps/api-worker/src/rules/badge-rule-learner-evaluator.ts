@@ -37,6 +37,7 @@ export const evaluateBadgeRuleLearner = async (
     readonly definition: BadgeIssuanceRuleDefinition;
     readonly nowIso: string;
     readonly previousIssuedAt?: string | undefined;
+    readonly confirmedByUserId?: string | undefined;
     readonly gradebookProvider?: GradebookRuleFactReader | undefined;
   },
   options: GradebookRequestOptions = {},
@@ -56,6 +57,13 @@ export const evaluateBadgeRuleLearner = async (
         definition: input.definition,
         gradebookProvider: input.gradebookProvider,
         nowIso: input.nowIso,
+        instructorConfirmation:
+          input.confirmedByUserId === undefined
+            ? undefined
+            : {
+                confirmedByUserId: input.confirmedByUserId,
+                confirmedAt: input.nowIso,
+              },
       },
       options,
     );

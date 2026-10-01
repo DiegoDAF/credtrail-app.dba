@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { parseBadgeIssuanceRuleDefinition } from "@credtrail/validation";
 import { badgeRenewalValidUntil } from "./badge-renewal";
-import { evaluateBadgeIssuanceRuleRenewal, type BadgeIssuanceRuleEvaluationFacts } from "./engine";
+import {
+  evaluateBadgeIssuanceRuleDefinition,
+  evaluateBadgeIssuanceRuleRenewal,
+  type BadgeIssuanceRuleEvaluationFacts,
+} from "./engine";
 
 describe("annual training policy", () => {
   it("preserves the award time and clamps leap-day and month-end renewal dates", () => {
@@ -48,11 +52,18 @@ describe("annual training policy", () => {
           learnerId: "student",
           completed: true,
           completionPercent: 100,
-          evidenceFrom: "2025-01-01T00:00:00.000Z",
+          trainingAttempts: [
+            {
+              submittedAt: "2025-01-01T00:00:00.000Z",
+              gradedAt: null,
+              gradeMatchesCurrentSubmission: null,
+              score: null,
+            },
+          ],
         },
       ],
     };
-    const evaluate = (evidenceFrom: string | null) =>
+    const evaluate = (submittedAt: string | null) =>
       evaluateBadgeIssuanceRuleRenewal(
         definition,
         {
@@ -64,7 +75,9 @@ describe("annual training policy", () => {
               learnerId: "student",
               completed: true,
               completionPercent: 100,
-              evidenceFrom,
+              trainingAttempts: [
+                { submittedAt, gradedAt: null, gradeMatchesCurrentSubmission: null, score: null },
+              ],
             },
           ],
         },
@@ -106,7 +119,14 @@ describe("annual training policy", () => {
             learnerId: "student",
             completed: true,
             completionPercent: 100,
-            evidenceFrom: courseId === "training" ? trainingDate : "2025-01-01T00:00:00.000Z",
+            trainingAttempts: [
+              {
+                submittedAt: courseId === "training" ? trainingDate : "2025-01-01T00:00:00.000Z",
+                gradedAt: null,
+                gradeMatchesCurrentSubmission: null,
+                score: null,
+              },
+            ],
           }),
         ),
       };
@@ -116,5 +136,264 @@ describe("annual training policy", () => {
     expect(evaluate(false, "2026-08-01T00:00:00.000Z")).toBe(false);
     expect(evaluate(true, "2026-08-01T00:00:00.000Z")).toBe(true);
     expect(evaluate(true, "2025-01-01T00:00:00.000Z")).toBe(false);
+  });
+});
+
+describe("shared confirmation and attempt evidence", () => {
+  const previousIssuedAt = "2025-09-01T00:00:00.000Z";
+  const nowIso = "2026-09-30T00:00:00.000Z";
+  const instructions = "Confirm this year's training.";
+  const confirmation = { type: "instructor_confirmation", instructions } as const;
+  const facts: BadgeIssuanceRuleEvaluationFacts = {
+    learnerId: "student",
+    nowIso,
+    grades: [],
+    completions: [],
+    submissions: [],
+    surveyCompletions: [],
+    customFields: [],
+    earnedBadgeTemplateIds: [],
+  };
+  const define = (conditions: unknown) =>
+    parseBadgeIssuanceRuleDefinition({
+      conditions,
+      options: { issuanceTiming: "manual", renewal: {} },
+    });
+
+  it.each([
+    { confirmedAt: "2025-08-31T00:00:00.000Z", matches: false },
+    { confirmedAt: previousIssuedAt, matches: false },
+    { confirmedAt: "2026-09-20T00:00:00.000Z", matches: true },
+    { confirmedAt: "2026-10-01T00:00:00.000Z", matches: false },
+  ])("requires the confirmation itself to be fresh: $confirmedAt", ({ confirmedAt, matches }) => {
+    const recorded = {
+      ...facts,
+      instructorConfirmations: [{ confirmedByUserId: "instructor", confirmedAt, instructions }],
+    };
+    const evaluation = evaluateBadgeIssuanceRuleRenewal(
+      define(confirmation),
+      recorded,
+      previousIssuedAt,
+    );
+    expect(evaluation.matched).toBe(matches);
+    expect(evaluation.tree.resultKind).toBe(matches ? "matched" : "missing_data");
+  });
+
+  it("keeps preview unmatched and requires confirmation of the exact published instructions", () => {
+    const definition = define(confirmation);
+    expect(evaluateBadgeIssuanceRuleDefinition(definition, facts)).toMatchObject({
+      matched: false,
+      canMatchWithInstructorConfirmation: true,
+      tree: { matched: false, resultKind: "missing_data" },
+    });
+    const recorded = {
+      ...facts,
+      instructorConfirmations: [
+        {
+          confirmedByUserId: "instructor",
+          confirmedAt: nowIso,
+          instructions: "A different requirement",
+        },
+      ],
+    };
+    expect(evaluateBadgeIssuanceRuleDefinition(definition, recorded).matched).toBe(false);
+    expect(
+      evaluateBadgeIssuanceRuleDefinition(definition, {
+        ...recorded,
+        instructorConfirmations: [
+          {
+            ...recorded.instructorConfirmations[0],
+            confirmedByUserId: "instructor",
+            confirmedAt: nowIso,
+            instructions,
+          },
+        ],
+      }).matched,
+    ).toBe(true);
+  });
+
+  it("composes confirmation with training, alternatives, and existing exclusions", () => {
+    const training = { type: "course_completion", courseId: "training", minCompletionPercent: 100 };
+    const excluded = { type: "course_completion", courseId: "excluded", minCompletionPercent: 100 };
+    const trainingFacts = {
+      ...facts,
+      completions: [
+        {
+          courseId: "training",
+          learnerId: "student",
+          completed: true,
+          completionPercent: 100,
+          trainingAttempts: [
+            {
+              submittedAt: nowIso,
+              gradedAt: null,
+              gradeMatchesCurrentSubmission: null,
+              score: null,
+            },
+          ],
+        },
+      ],
+    };
+    const combined = define({ all: [confirmation, training, { not: excluded }] });
+    expect(
+      evaluateBadgeIssuanceRuleRenewal(combined, facts, previousIssuedAt)
+        .canMatchWithInstructorConfirmation,
+    ).toBeUndefined();
+    expect(
+      evaluateBadgeIssuanceRuleRenewal(combined, trainingFacts, previousIssuedAt),
+    ).toMatchObject({ matched: false, canMatchWithInstructorConfirmation: true });
+    const confirmed = {
+      ...trainingFacts,
+      instructorConfirmations: [
+        { confirmedByUserId: "instructor", confirmedAt: nowIso, instructions },
+      ],
+    };
+    expect(evaluateBadgeIssuanceRuleRenewal(combined, confirmed, previousIssuedAt).matched).toBe(
+      true,
+    );
+    expect(
+      evaluateBadgeIssuanceRuleRenewal(
+        combined,
+        {
+          ...confirmed,
+          completions: [
+            ...confirmed.completions,
+            { courseId: "excluded", learnerId: "student", completed: true, completionPercent: 100 },
+          ],
+        },
+        previousIssuedAt,
+      ).matched,
+    ).toBe(false);
+    expect(
+      evaluateBadgeIssuanceRuleRenewal(
+        define({ any: [confirmation, training] }),
+        trainingFacts,
+        previousIssuedAt,
+      ).matched,
+    ).toBe(true);
+    expect(
+      evaluateBadgeIssuanceRuleDefinition(
+        define({ all: [confirmation, { not: confirmation }] }),
+        facts,
+      ).canMatchWithInstructorConfirmation,
+    ).toBeUndefined();
+  });
+
+  it.each([
+    {
+      submittedAt: "2026-09-20T00:00:00.000Z",
+      gradedAt: "2026-09-21T00:00:00.000Z",
+      gradeMatchesCurrentSubmission: true,
+      matches: true,
+    },
+    {
+      submittedAt: "2025-08-20T00:00:00.000Z",
+      gradedAt: "2026-09-21T00:00:00.000Z",
+      gradeMatchesCurrentSubmission: true,
+      matches: false,
+    },
+    {
+      submittedAt: "2026-09-20T00:00:00.000Z",
+      gradedAt: "2026-09-19T00:00:00.000Z",
+      gradeMatchesCurrentSubmission: true,
+      matches: false,
+    },
+    {
+      submittedAt: "2026-09-20T00:00:00.000Z",
+      gradedAt: "2026-10-01T00:00:00.000Z",
+      gradeMatchesCurrentSubmission: true,
+      matches: false,
+    },
+    {
+      submittedAt: "2026-09-20T00:00:00.000Z",
+      gradedAt: "2026-09-21T00:00:00.000Z",
+      gradeMatchesCurrentSubmission: false,
+      matches: false,
+    },
+    {
+      submittedAt: "2026-09-20T00:00:00.000Z",
+      gradedAt: "2026-09-21T00:00:00.000Z",
+      gradeMatchesCurrentSubmission: null,
+      matches: false,
+    },
+  ])(
+    "uses the same scored-attempt policy for course grades and submissions: $gradedAt/$gradeMatchesCurrentSubmission",
+    ({ matches, ...timestamps }) => {
+      const attempt = { ...timestamps, score: 95 };
+      const recorded = {
+        ...facts,
+        grades: [
+          {
+            courseId: "training",
+            learnerId: "student",
+            currentScore: 95,
+            finalScore: 95,
+            trainingAttempts: [attempt],
+          },
+        ],
+        submissions: [
+          {
+            courseId: "training",
+            learnerId: "student",
+            assignmentId: "assessment",
+            workflowState: "graded",
+            ...attempt,
+          },
+        ],
+      };
+      for (const condition of [
+        { type: "grade_threshold", courseId: "training", minScore: 80 },
+        {
+          type: "assignment_submission",
+          courseId: "training",
+          assignmentId: "assessment",
+          minScore: 80,
+        },
+      ])
+        expect(
+          evaluateBadgeIssuanceRuleRenewal(define(condition), recorded, previousIssuedAt).matched,
+        ).toBe(matches);
+    },
+  );
+
+  it("requires every course item to have a new attempt, while completion needs no score", () => {
+    const completion = {
+      courseId: "training",
+      learnerId: "student",
+      completed: true,
+      completionPercent: 100,
+    };
+    const fresh = {
+      submittedAt: nowIso,
+      gradedAt: null,
+      gradeMatchesCurrentSubmission: null,
+      score: null,
+    };
+    const definition = define({
+      type: "course_completion",
+      courseId: "training",
+      minCompletionPercent: 100,
+    });
+    for (const attempts of [
+      [],
+      null,
+      [fresh, { ...fresh, submittedAt: null }],
+      [fresh, { ...fresh, submittedAt: previousIssuedAt }],
+    ]) {
+      expect(
+        evaluateBadgeIssuanceRuleRenewal(
+          definition,
+          { ...facts, completions: [{ ...completion, trainingAttempts: attempts }] },
+          previousIssuedAt,
+        ).matched,
+      ).toBe(false);
+    }
+    expect(
+      evaluateBadgeIssuanceRuleRenewal(
+        definition,
+        { ...facts, completions: [{ ...completion, trainingAttempts: [fresh] }] },
+        previousIssuedAt,
+      ).matched,
+    ).toBe(true);
   });
 });

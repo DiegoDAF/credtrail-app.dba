@@ -11,6 +11,7 @@ import {
 import {
   parseBadgeIssuanceRuleDefinition,
   parseQueueJob,
+  parseIssuanceEvidenceSnapshotJson,
   type BadgeIssuanceRuleCondition,
 } from "@credtrail/validation";
 import {
@@ -27,7 +28,12 @@ import { evaluateBadgeRuleLearner } from "../rules/badge-rule-learner-evaluator"
 import type { GradebookAutomatedEvaluationReader } from "../lms/gradebook-types";
 import { badgeAwardIdempotencyKey } from "./badge-award-identity";
 import type { DirectIssueBadgeRequest } from "./recipient-identifiers";
-import { evaluateLtiRosterMembersEligibility } from "../lti/roster-eligibility";
+import {
+  evaluateLtiRosterMemberEligibility,
+  evaluateLtiRosterMembersEligibility,
+  type LtiRosterEligibilityRuleResolution,
+  type LtiRosterIssuedBadgeStateForEligibility,
+} from "../lti/roster-eligibility";
 import { ltiRosterIssuedBadgeStatesByUserId } from "../lti/roster-issuance-helpers";
 import { buildLtiRosterIssueBadgeRequest } from "../lti/roster-issue-request";
 import { sampleLtiRosterMember } from "../lti/roster-eligibility-test-fixtures";
@@ -64,7 +70,11 @@ const memoryStore = (): ImmutableCredentialStore => {
   };
 };
 
-const scenario = async (manual = false, conditions?: BadgeIssuanceRuleCondition) => {
+const scenario = async (
+  manual = false,
+  conditions?: BadgeIssuanceRuleCondition,
+  renewable = true,
+) => {
   const fixture = await createBadgeRuleIntegrationFixture();
   const store = memoryStore();
   const ids = {
@@ -96,7 +106,10 @@ const scenario = async (manual = false, conditions?: BadgeIssuanceRuleCondition)
             assignmentId: "assessment",
             minScore: 80,
           }),
-    options: { issuanceTiming: manual ? "manual" : "immediate", renewal: { intervalMonths: 12 } },
+    options: {
+      issuanceTiming: manual ? "manual" : "immediate",
+      ...(renewable ? { renewal: { intervalMonths: 12 } } : {}),
+    },
   });
   const created = await createTestBadgeIssuanceRule(fixture.db, {
     tenantId: fixture.tenantId,
@@ -390,7 +403,14 @@ describeDbIntegration("rolling badge renewals", () => {
                     completed: true,
                     completionPercent: 100,
                     completedAt: oldDate,
-                    evidenceFrom: oldDate,
+                    trainingAttempts: [
+                      {
+                        submittedAt: oldDate,
+                        gradedAt: null,
+                        gradeMatchesCurrentSubmission: null,
+                        score: null,
+                      },
+                    ],
                     sourceState: "gradebook_items",
                   },
                 ]
@@ -627,7 +647,14 @@ describeDbIntegration("rolling badge renewals", () => {
                       learnerId: "student",
                       completed: true,
                       completedAt: "2019-01-01T00:00:00.000Z",
-                      evidenceFrom: "2019-01-01T00:00:00.000Z",
+                      trainingAttempts: [
+                        {
+                          submittedAt: "2019-01-01T00:00:00.000Z",
+                          gradedAt: null,
+                          gradeMatchesCurrentSubmission: null,
+                          score: null,
+                        },
+                      ],
                       completionPercent: 100,
                       sourceState: "gradebook_items",
                     },
@@ -697,4 +724,202 @@ describeDbIntegration("rolling badge renewals", () => {
       await s.dispose();
     }
   });
+
+  it("evaluates composed confirmations and rechecks their actual time, actor, and training at delivery", async () => {
+    const instructions = "Confirm this year's training.";
+    const s = await scenario(true, {
+      all: [
+        { type: "instructor_confirmation", instructions },
+        {
+          type: "assignment_submission",
+          courseId: "training",
+          assignmentId: "assessment",
+          minScore: 80,
+        },
+      ],
+    });
+    try {
+      const member = sampleLtiRosterMember({ userId: "opaque-lti-student", email: s.email });
+      const check = async (nowIso: string, submittedAt: string, confirmedByUserId?: string) =>
+        (
+          await evaluateLtiRosterMembersEligibility({
+            db: s.db,
+            tenantId: s.tenantId,
+            ruleResolution: { status: "resolved", ruleId: s.created.rule.id },
+            members: [member],
+            issuedStatesByUserId: await ltiRosterIssuedBadgeStatesByUserId({
+              db: s.db,
+              action: { tenantId: s.tenantId, badgeTemplateId: s.badgeTemplateId },
+              learnerMembers: [member],
+            }),
+            nowIso,
+            confirmedByUserId,
+            gradebookProvider: s.provider(submittedAt),
+          })
+        ).get(member.userId);
+      const firstTime = "2020-01-02T00:00:00.000Z";
+      const preview = await check(firstTime, "2020-01-01T00:00:00.000Z");
+      expect(preview).toMatchObject({ eligibleForIssuance: true, label: "Awaiting confirmation" });
+      expect(preview?.issuanceProvenance).toBeUndefined();
+      const firstEligibility = await check(firstTime, "2020-01-01T00:00:00.000Z", s.userId);
+      if (firstEligibility === undefined) throw new Error("Expected eligibility");
+      const build = (eligibility: typeof firstEligibility) =>
+        buildLtiRosterIssueBadgeRequest({
+          member: { ...member, email: s.email },
+          eligibility,
+          tenantId: s.tenantId,
+          badgeTemplateId: s.badgeTemplateId,
+          sha256Hex,
+        });
+      const first = await s.issueAt(await build(firstEligibility), firstTime);
+      const now = new Date().toISOString();
+      expect(await check(now, "2020-01-01T00:00:00.000Z", s.userId)).toMatchObject({
+        eligibleForIssuance: false,
+      });
+      const eligible = await check(now, "2026-01-01T00:00:00.000Z", s.userId);
+      if (eligible === undefined) throw new Error("Expected renewal eligibility");
+      const request = await build(eligible);
+      if (request.achievementSource.kind !== "rule_version")
+        throw new Error("Expected rule provenance");
+      const source = request.achievementSource;
+      const snapshot = parseIssuanceEvidenceSnapshotJson(source.provenance.provenanceJson ?? null);
+      if (snapshot.facts === null || snapshot.tree === null)
+        throw new Error("Expected recorded evidence");
+      expect(snapshot.tree).toMatchObject({ type: "all", matched: true });
+      expect(snapshot.facts).toMatchObject({
+        learnerId: "student",
+        instructorConfirmations: [{ confirmedByUserId: s.userId, confirmedAt: now, instructions }],
+      });
+      for (const confirmation of [
+        { confirmedByUserId: s.userId, confirmedAt: firstTime, instructions },
+        {
+          confirmedByUserId: s.userId,
+          confirmedAt: new Date(Date.parse(now) + 86400000).toISOString(),
+          instructions,
+        },
+        { confirmedByUserId: "another-instructor", confirmedAt: now, instructions },
+        { confirmedByUserId: s.userId, confirmedAt: now, instructions: "A different requirement" },
+      ]) {
+        const tampered = {
+          ...request,
+          achievementSource: {
+            ...source,
+            provenance: {
+              ...source.provenance,
+              provenanceJson: JSON.stringify({
+                evaluation: { matched: true, tree: snapshot.tree },
+                facts: { ...snapshot.facts, instructorConfirmations: [confirmation] },
+              }),
+            },
+          },
+        };
+        await expect(s.issueAt(tampered, now)).rejects.toThrow("new training completion");
+      }
+      const renewal = await s.issueAt(request, now);
+      expect(renewal).toMatchObject({ status: "issued" });
+      expect(renewal.assertionId).not.toBe(first.assertionId);
+    } finally {
+      await s.dispose();
+    }
+  });
+
+  it.each([true, false])(
+    "keeps single and batch roster lifecycle decisions identical (renewable: %s)",
+    async (renewable) => {
+      const s = await scenario(true, undefined, renewable);
+      try {
+        const member = sampleLtiRosterMember({ userId: "student", email: s.email });
+        const resolutions: LtiRosterEligibilityRuleResolution[] = [
+          { status: "resolved", ruleId: s.created.rule.id },
+          { status: "rule_pending", detail: "No linked rule" },
+          { status: "unavailable", detail: "Placement unavailable" },
+        ];
+        const states: (LtiRosterIssuedBadgeStateForEligibility | null)[] = [
+          null,
+          ...([null, "active", "expired", "suspended", "revoked"] as const).map(
+            (lifecycleState) => ({
+              lifecycleState,
+              assertionId: "previous-award",
+              issuedAt: "2020-01-01T00:00:00.000Z",
+            }),
+          ),
+        ];
+        for (const ruleResolution of resolutions) {
+          for (const issuedState of states) {
+            const input = {
+              db: s.db,
+              tenantId: s.tenantId,
+              ruleResolution,
+              nowIso: "2026-09-30T00:00:00.000Z",
+            };
+            const single = await evaluateLtiRosterMemberEligibility({
+              ...input,
+              member,
+              issuedState,
+            });
+            const batch = (
+              await evaluateLtiRosterMembersEligibility({
+                ...input,
+                members: [member],
+                issuedStatesByUserId:
+                  issuedState === null ? new Map() : new Map([[member.userId, issuedState]]),
+              })
+            ).get(member.userId);
+            expect(single).toEqual(batch);
+            const alreadyIssued =
+              issuedState !== null &&
+              !(
+                renewable &&
+                issuedState.lifecycleState === "expired" &&
+                ruleResolution.status === "resolved"
+              );
+            const expectedStatus = alreadyIssued
+              ? "already_issued"
+              : ruleResolution.status === "resolved"
+                ? "eligible"
+                : ruleResolution.status;
+            expect(single).toMatchObject({
+              status: expectedStatus,
+              eligibleForIssuance: expectedStatus === "eligible",
+            });
+          }
+        }
+        await s.db
+          .prepare("UPDATE badge_issuance_rules SET active_version_id = NULL WHERE id = ?")
+          .bind(s.created.rule.id)
+          .run();
+        const input = {
+          db: s.db,
+          tenantId: s.tenantId,
+          ruleResolution: resolutions[0],
+          nowIso: "2026-09-30T00:00:00.000Z",
+        };
+        const ruleResolution = resolutions[0];
+        if (ruleResolution === undefined) throw new Error("Expected resolution");
+        const issuedState: LtiRosterIssuedBadgeStateForEligibility = {
+          lifecycleState: "expired",
+          assertionId: "expired",
+          issuedAt: "2020-01-01T00:00:00.000Z",
+        };
+        const single = await evaluateLtiRosterMemberEligibility({
+          ...input,
+          ruleResolution,
+          member,
+          issuedState,
+        });
+        const batch = (
+          await evaluateLtiRosterMembersEligibility({
+            ...input,
+            ruleResolution,
+            members: [member],
+            issuedStatesByUserId: new Map([[member.userId, issuedState]]),
+          })
+        ).get(member.userId);
+        expect(single).toEqual(batch);
+        expect(single.status).toBe("already_issued");
+      } finally {
+        await s.dispose();
+      }
+    },
+  );
 });

@@ -16,6 +16,7 @@ export type LtiRosterRuleEvaluator = (learner: {
   readonly ltiUserId: string;
   readonly recipientEmail: string;
   readonly previousIssuedAt?: string | undefined;
+  readonly confirmedByUserId?: string | undefined;
 }) => Promise<BadgeRuleLearnerEvaluationResult>;
 
 type LearnerDirectory =
@@ -118,6 +119,7 @@ export const createLtiRosterRuleEvaluator = (input: {
       definition: prepared.definition,
       nowIso: input.nowIso,
       previousIssuedAt: learner.previousIssuedAt,
+      confirmedByUserId: learner.confirmedByUserId,
       gradebookProvider,
     });
   };

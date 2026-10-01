@@ -248,10 +248,13 @@ describeDbIntegration("institution-wide instructor issuance", () => {
       throw new Error("Missing governed issuance source");
     expect(JSON.parse(request.achievementSource.provenance.provenanceJson)).toMatchObject({
       facts: {
-        instructorConfirmation: {
-          confirmedByUserId: fixture.userId,
-          instructions: definition.conditions.instructions,
-        },
+        instructorConfirmations: [
+          {
+            confirmedByUserId: fixture.userId,
+            instructions: definition.conditions.instructions,
+            confirmedAt: expect.any(String),
+          },
+        ],
       },
     });
     const secondAction = { ...action, contextId: "course-b", resourceLinkId: "link-b" };

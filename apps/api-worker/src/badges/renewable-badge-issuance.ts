@@ -5,11 +5,9 @@ import {
 } from "@credtrail/db";
 import {
   badgeIssuanceRuleFactsSchema,
-  badgeRuleInstructorConfirmation,
   parseIssuanceEvidenceSnapshotJson,
   type BadgeIssuanceRuleDefinition,
 } from "@credtrail/validation";
-import { z } from "zod";
 import { badgeRenewalValidUntil } from "../rules/badge-renewal";
 import { loadRuleFacts } from "../rules/badge-rule-facts-loader";
 import { evaluateBadgeIssuanceRuleRenewal } from "../rules/engine";
@@ -67,28 +65,26 @@ export const prepareRenewableBadgeIssuance = async (input: {
   )
     return missingFreshEvidence;
 
-  if (badgeRuleInstructorConfirmation(definition.conditions) !== null) {
-    const confirmation = z
-      .object({ confirmedByUserId: z.string().min(1) })
-      .safeParse(snapshot.facts.instructorConfirmation);
-    if (!confirmation.success || confirmation.data.confirmedByUserId !== input.issuedByUserId)
-      return missingFreshEvidence;
-  } else {
-    const parsedFacts = badgeIssuanceRuleFactsSchema.safeParse(snapshot.facts);
-    if (!parsedFacts.success) return missingFreshEvidence;
-    const facts = await loadRuleFacts({
-      db: input.db,
-      tenantId: input.tenantId,
-      lmsProviderKind: input.lmsProviderKind,
-      learnerId: snapshot.facts.learnerId,
-      recipient: { identity: input.recipientEmail, identityType: "email" },
-      definition,
-      // Prerequisites must still be current when a queued award is delivered.
-      requestedFacts: { ...parsedFacts.data, earnedBadgeTemplateIds: undefined },
-      nowIso: input.issuedAt,
-    });
-    if (!evaluateBadgeIssuanceRuleRenewal(definition, facts, cycle.issuedAt).matched)
-      return missingFreshEvidence;
-  }
+  const parsedFacts = badgeIssuanceRuleFactsSchema.safeParse(snapshot.facts);
+  if (
+    !parsedFacts.success ||
+    (parsedFacts.data.instructorConfirmations ?? []).some(
+      (fact) => fact.confirmedByUserId !== input.issuedByUserId,
+    )
+  )
+    return missingFreshEvidence;
+  const facts = await loadRuleFacts({
+    db: input.db,
+    tenantId: input.tenantId,
+    lmsProviderKind: input.lmsProviderKind,
+    learnerId: snapshot.facts.learnerId,
+    recipient: { identity: input.recipientEmail, identityType: "email" },
+    definition,
+    // Prerequisites must still be current when a queued award is delivered.
+    requestedFacts: { ...parsedFacts.data, earnedBadgeTemplateIds: undefined },
+    nowIso: input.issuedAt,
+  });
+  if (!evaluateBadgeIssuanceRuleRenewal(definition, facts, cycle.issuedAt).matched)
+    return missingFreshEvidence;
   return { status: "ready", validUntil, renewalOfAssertionId: cycle.assertionId };
 };

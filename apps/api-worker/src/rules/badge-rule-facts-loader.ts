@@ -41,6 +41,9 @@ export const loadRuleFacts = async (
       | undefined;
     definition: ReturnType<typeof parseBadgeIssuanceRuleDefinition>;
     requestedFacts?: BadgeIssuanceRuleFacts | undefined;
+    instructorConfirmation?:
+      | { readonly confirmedByUserId: string; readonly confirmedAt: string }
+      | undefined;
     gradebookProvider?: GradebookRuleFactReader | undefined;
     nowIso: string;
   },
@@ -48,6 +51,14 @@ export const loadRuleFacts = async (
 ): Promise<BadgeIssuanceRuleEvaluationFacts> => {
   const requestedFacts = input.requestedFacts;
   const requirements = extractBadgeIssuanceRuleRequirements(input.definition);
+  const confirmation = input.instructorConfirmation;
+  const instructorConfirmations =
+    confirmation === undefined
+      ? []
+      : requirements.instructorConfirmationInstructions.map((instructions) => ({
+          ...confirmation,
+          instructions,
+        }));
 
   const loadEarnedBadgeTemplateIds = async (
     requested: readonly string[] | undefined,
@@ -79,17 +90,18 @@ export const loadRuleFacts = async (
     return {
       learnerId: input.learnerId,
       nowIso: requestedFacts.nowIso ?? input.nowIso,
+      instructorConfirmations: requestedFacts.instructorConfirmations ?? instructorConfirmations,
       grades: (requestedFacts.grades ?? []).map((fact) => ({
         courseId: fact.courseId,
         learnerId: fact.learnerId,
-        evidenceFrom: fact.evidenceFrom ?? null,
+        trainingAttempts: fact.trainingAttempts ?? null,
         currentScore: fact.currentScore ?? null,
         finalScore: fact.finalScore ?? null,
       })),
       completions: (requestedFacts.completions ?? []).map((fact) => ({
         courseId: fact.courseId,
         learnerId: fact.learnerId,
-        evidenceFrom: fact.evidenceFrom ?? null,
+        trainingAttempts: fact.trainingAttempts ?? null,
         completed: fact.completed,
         completionPercent: fact.completionPercent ?? null,
       })),
@@ -126,6 +138,7 @@ export const loadRuleFacts = async (
     return {
       learnerId: input.learnerId,
       nowIso: input.nowIso,
+      instructorConfirmations,
       grades: [],
       completions: [],
       submissions: [],
@@ -175,10 +188,10 @@ export const loadRuleFacts = async (
       ...courseGrades.map((grade) => ({
         courseId: grade.courseId,
         learnerId: grade.learnerId,
-        evidenceFrom:
+        trainingAttempts:
           courseCompletions.find(
             (completion) => completion.learnerId === grade.learnerId && completion.completed,
-          )?.gradeEvidenceFrom ?? null,
+          )?.trainingAttempts ?? null,
         currentScore: grade.currentScore,
         finalScore: grade.finalScore,
       })),
@@ -187,7 +200,7 @@ export const loadRuleFacts = async (
       ...courseCompletions.map((completion) => ({
         courseId: completion.courseId,
         learnerId: completion.learnerId,
-        evidenceFrom: completion.evidenceFrom ?? null,
+        trainingAttempts: completion.trainingAttempts ?? null,
         completed: completion.completed,
         completionPercent: completion.completionPercent,
       })),
@@ -221,6 +234,7 @@ export const loadRuleFacts = async (
   return {
     learnerId: input.learnerId,
     nowIso: input.nowIso,
+    instructorConfirmations,
     grades,
     completions,
     submissions,

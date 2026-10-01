@@ -1,3 +1,5 @@
+import type { BadgeIssuanceRuleTrainingAttempt } from "@credtrail/validation";
+
 export const GRADEBOOK_PROVIDER_KINDS = ["canvas", "sakai"] as const;
 
 export type GradebookProviderKind = (typeof GRADEBOOK_PROVIDER_KINDS)[number];
@@ -94,10 +96,8 @@ export interface GradebookGradeRecord {
 }
 
 export interface GradebookCompletionRecord {
-  /** Earliest completion of the required items; absent when dates cannot prove a fresh course completion. */
-  evidenceFrom?: string | null | undefined;
-  /** All required scores belong to current attempts and were graded after their submissions. */
-  gradeEvidenceFrom?: string | null | undefined;
+  /** One entry per required item; unknown timestamps remain unknown. */
+  trainingAttempts?: readonly BadgeIssuanceRuleTrainingAttempt[] | null | undefined;
   courseId: string;
   learnerId: string;
   completed: boolean;
