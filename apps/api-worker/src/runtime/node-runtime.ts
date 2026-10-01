@@ -94,6 +94,7 @@ const createNodeEmailBinding = (envSource: EnvSource): SendEmail | undefined => 
       secure: parseBooleanEnv(envSource, "SMTP_SECURE") ?? false,
       user: optionalEnv(envSource, "SMTP_USER"),
       password: optionalEnv(envSource, "SMTP_PASSWORD"),
+      replyTo: optionalEnv(envSource, "TRANSACTIONAL_EMAIL_REPLY_TO"),
     });
   }
 

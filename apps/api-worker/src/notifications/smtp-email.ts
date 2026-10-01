@@ -10,6 +10,7 @@ export interface CreateSmtpEmailBindingInput {
   secure: boolean;
   user?: string | undefined;
   password?: string | undefined;
+  replyTo?: string | undefined;
 }
 
 const formatEmailAddress = (address: string | EmailAddress): string => {
@@ -71,7 +72,7 @@ export const createSmtpEmailBinding = (
         to,
         cc: addressList(message.cc),
         bcc: addressList(message.bcc),
-        replyTo: message.replyTo === undefined ? undefined : formatEmailAddress(message.replyTo),
+        replyTo: message.replyTo === undefined ? input.replyTo : formatEmailAddress(message.replyTo),
         subject: message.subject,
         text: message.text,
         html: message.html,
