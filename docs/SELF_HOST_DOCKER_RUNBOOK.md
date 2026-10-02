@@ -110,6 +110,12 @@ include a scheme, path, or port. Set `PUBLIC_APP_ORIGIN` to the one externally r
 such as `https://credentials.example.edu`. CredTrail uses that origin for redirects, login, LTI,
 emails, badge artwork, and other public app URLs; it does not infer these URLs from request headers.
 
+## UI Assets
+
+The Node runtime serves the hashed page assets under `/assets/ui/*` from the image's `public`
+directory (on Workers the static assets binding does this). Override the directory with
+`PUBLIC_ASSETS_DIR` only if you move it; the default `public` is relative to `/app`.
+
 ## Upgrade Procedure (Image Tag N -> N+1)
 
 1. Pull new image tag:
