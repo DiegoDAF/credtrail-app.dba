@@ -117,6 +117,25 @@ describe("sendIssuanceEmailNotification", () => {
     expect(content.text).not.toContain("/verification");
   });
 
+  it("links Add to LinkedIn to the issuer's company page when its ID is configured", () => {
+    const content = buildIssuanceEmailContent({
+      recipientEmail: "learner@example.edu",
+      badgeTitle: "DBAses Member",
+      assertionId: "tenant_123:assertion_456",
+      tenantId: "tenant_123",
+      issuedAtIso: "2026-10-02T19:00:00.000Z",
+      publicBadgeUrl: "https://badges.example.edu/badges/x",
+      verificationUrl: "https://badges.example.edu/badges/x/verification",
+      credentialDownloadUrl: "https://badges.example.edu/badges/x/download",
+      issuerName: "DBAses",
+      linkedInOrganizationId: "110806030",
+    });
+
+    expect(content.html).toContain("organizationId=110806030");
+    expect(content.html).not.toContain("organizationName=");
+    expect(content.text).toContain("organizationId=110806030");
+  });
+
   it("escapes badge text in the HTML part", () => {
     const content = buildIssuanceEmailContent({
       recipientEmail: "learner@example.edu",

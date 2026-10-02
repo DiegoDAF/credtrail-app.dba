@@ -28,7 +28,7 @@ import { buildPublicBadgeWalletImportUrls } from "../badges/wallet-import-urls";
 import { renderWalletQrCodeSvg, walletQrCodePayloadFromDeepLink } from "../badges/wallet-qr-code";
 import { canonicalAppRequestUrl } from "../http/canonical-app-url";
 import { renderAppPage, type AppPage } from "../ui/render-page";
-import { linkedInAddToProfileUrl } from "../utils/display-format";
+import { linkedInAddToProfileUrl, linkedInOrganizationIdForTenant } from "../utils/display-format";
 import { asString } from "../utils/value-parsers";
 
 interface PublicBadgeRouteValue {
@@ -244,6 +244,7 @@ export const registerPublicBadgeRoutes = <PublicBadgeValue extends PublicBadgeRo
     requestUrl: string,
     value: PublicBadgeValue,
     channel: string,
+    linkedInOrganizationIds: string | undefined,
   ): string | null => {
     const publicBadgePath = `/badges/${encodeURIComponent(value.assertion.publicId)}`;
     const publicBadgeUrl = new URL(publicBadgePath, requestUrl).toString();
@@ -261,6 +262,10 @@ export const registerPublicBadgeRoutes = <PublicBadgeValue extends PublicBadgeRo
         issuedAtIso: value.assertion.issuedAt,
         credentialUrl: publicBadgeUrl,
         credentialId: asString(value.credential.id) ?? value.assertion.id,
+        organizationId: linkedInOrganizationIdForTenant(
+          linkedInOrganizationIds,
+          value.assertion.tenantId,
+        ),
       });
     }
 
@@ -322,7 +327,12 @@ export const registerPublicBadgeRoutes = <PublicBadgeValue extends PublicBadgeRo
       return renderAppPage(c, publicBadgeNotFoundPage(publicRequestUrl(c)), 404);
     }
 
-    const redirectUrl = shareRedirectUrlForChannel(publicRequestUrl(c), result.value, channel);
+    const redirectUrl = shareRedirectUrlForChannel(
+      publicRequestUrl(c),
+      result.value,
+      channel,
+      c.env.LINKEDIN_ORGANIZATION_IDS,
+    );
 
     if (redirectUrl === null) {
       return c.text("Share action not supported", 404);

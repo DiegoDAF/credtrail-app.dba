@@ -36,6 +36,7 @@ Optional:
 - `AWS_SES_REGION` (defaults to `S3_REGION` if omitted)
 - `TRANSACTIONAL_EMAIL_FROM_ADDRESS` (required when `EMAIL_PROVIDER=ses`)
 - `AWS_SES_CONFIGURATION_SET`
+- `LINKEDIN_ORGANIZATION_IDS` (comma-separated `tenant:companyPageId` pairs, for example `acme:12345`; "Add to LinkedIn" then links the certification to that LinkedIn company page, logo included, instead of sending the issuer name as plain text)
 
 Worker notes:
 
