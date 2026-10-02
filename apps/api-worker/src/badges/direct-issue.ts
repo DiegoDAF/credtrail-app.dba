@@ -1,4 +1,5 @@
 import { emailThemeFromBindings, type EmailThemeBindings } from "../notifications/email-layout";
+import { linkedInOrganizationIdForTenant } from "../utils/display-format";
 import { prepareRenewableBadgeIssuance } from "./renewable-badge-issuance";
 import {
   attemptIssuanceEmail,
@@ -65,6 +66,7 @@ import {
 } from "./trusted-credential-ob3-projection";
 
 interface IssueBadgeBindings extends EmailThemeBindings {
+  LINKEDIN_ORGANIZATION_IDS?: string | undefined;
   BADGE_OBJECTS: ImmutableCredentialStore;
   PLATFORM_DOMAIN: string;
   PUBLIC_APP_ORIGIN: string;
@@ -632,6 +634,10 @@ export const createIssueBadgeForTenant = <
           badgeDescription: achievement.description,
           badgeImageUrl: achievement.imageUri,
           theme: emailThemeFromBindings(context.env),
+          linkedInOrganizationId: linkedInOrganizationIdForTenant(
+            context.env.LINKEDIN_ORGANIZATION_IDS,
+            tenantId,
+          ),
         });
       },
     });

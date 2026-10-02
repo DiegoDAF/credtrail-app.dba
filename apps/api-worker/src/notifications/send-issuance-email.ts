@@ -25,6 +25,8 @@ export interface SendIssuanceEmailNotificationInput {
   credentialDownloadUrl: string;
   /** Human-friendly PDF copy. The verification URL is a JSON API, so the email links the badge page instead. */
   credentialPdfDownloadUrl?: string | undefined;
+  /** Issuer's LinkedIn company page ID, so "Add to LinkedIn" links the certification to the page. */
+  linkedInOrganizationId?: string | undefined;
   /** Issuer display name shown as "Issued by". */
   issuerName?: string | undefined;
   badgeDescription?: string | null | undefined;
@@ -60,6 +62,7 @@ export const buildIssuanceEmailContent = (
     credentialId: credentialIdFromPublicUrl(input.publicBadgeUrl, input.assertionId),
     issuerName,
     issuedAtIso: input.issuedAtIso,
+    organizationId: input.linkedInOrganizationId,
   });
   const issuedLine =
     issuerName.length > 0 ? `Issued by ${issuerName} on ${issuedOn}` : `Issued on ${issuedOn}`;

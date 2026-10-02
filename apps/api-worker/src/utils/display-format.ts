@@ -4,7 +4,36 @@ interface LinkedInAddToProfileInput {
   issuedAtIso: string;
   credentialUrl: string;
   credentialId: string;
+  /** Issuer's LinkedIn company page ID. LinkedIn then links the certification to the page and shows its logo. */
+  organizationId?: string | undefined;
 }
+
+const LINKEDIN_ORGANIZATION_ID_PATTERN = /^\d+$/;
+
+/**
+ * LinkedIn company page ID for a tenant, from LINKEDIN_ORGANIZATION_IDS ("tenant:pageId,other:pageId").
+ * Entries without a numeric page ID are ignored.
+ */
+export const linkedInOrganizationIdForTenant = (
+  configuredIds: string | undefined,
+  tenantId: string,
+): string | undefined => {
+  for (const entry of (configuredIds ?? "").split(",")) {
+    const separatorIndex = entry.lastIndexOf(":");
+    const entryTenantId = entry.slice(0, Math.max(separatorIndex, 0)).trim();
+    const organizationId = entry.slice(separatorIndex + 1).trim();
+
+    if (
+      separatorIndex > 0 &&
+      entryTenantId === tenantId &&
+      LINKEDIN_ORGANIZATION_ID_PATTERN.test(organizationId)
+    ) {
+      return organizationId;
+    }
+  }
+
+  return undefined;
+};
 
 const linkedInIssuedDateFromIso = (
   issuedAtIso: string,
@@ -51,9 +80,13 @@ export const linkedInAddToProfileUrl = (input: LinkedInAddToProfileInput): strin
     linkedInUrl.searchParams.set("certId", credentialId);
   }
 
+  const organizationId = input.organizationId?.trim() ?? "";
   const issuerName = input.issuerName.trim();
 
-  if (issuerName.length > 0 && issuerName !== "Unknown issuer") {
+  // LinkedIn takes organizationId or organizationName, never both.
+  if (LINKEDIN_ORGANIZATION_ID_PATTERN.test(organizationId)) {
+    linkedInUrl.searchParams.set("organizationId", organizationId);
+  } else if (issuerName.length > 0 && issuerName !== "Unknown issuer") {
     linkedInUrl.searchParams.set("organizationName", issuerName);
   }
 

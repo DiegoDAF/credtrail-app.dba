@@ -9,6 +9,7 @@ import { publicBadgePathForAssertion } from "../badges/public-badge-model";
 import { canonicalAppUrl } from "../http/canonical-app-url";
 import { retryFailedIssuanceEmail } from "../notifications/retry-issuance-email";
 import { sendIssuanceEmailNotification } from "../notifications/send-issuance-email";
+import { linkedInOrganizationIdForTenant } from "../utils/display-format";
 import type { RegisterTenantOperationsAdminRoutesInput } from "./tenant-operations-admin-routes";
 
 export const registerTenantNotificationRetryAdminRoutes = (
@@ -101,6 +102,10 @@ export const registerTenantNotificationRetryAdminRoutes = (
             badgeDescription: assertion.achievementSnapshot.description,
             badgeImageUrl: assertion.achievementSnapshot.imageUri,
             theme: emailThemeFromBindings(c.env),
+            linkedInOrganizationId: linkedInOrganizationIdForTenant(
+              c.env.LINKEDIN_ORGANIZATION_IDS,
+              tenantId,
+            ),
           }),
       });
       return finish(
