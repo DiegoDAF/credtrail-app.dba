@@ -72,7 +72,7 @@ describe("sendIssuanceEmailNotification", () => {
     fetchSpy.mockRestore();
   });
 
-  it("builds a branded HTML email with the badge, issuer, LinkedIn and verification links", () => {
+  it("builds a branded HTML email with the badge, issuer, LinkedIn and download links", () => {
     const content = buildIssuanceEmailContent({
       fromName: "DBAses Badges",
       recipientEmail: "learner@example.edu",
@@ -85,6 +85,8 @@ describe("sendIssuanceEmailNotification", () => {
         "https://badges.example.edu/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22/verification",
       credentialDownloadUrl:
         "https://badges.example.edu/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22/download",
+      credentialPdfDownloadUrl:
+        "https://badges.example.edu/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22/download.pdf",
       issuerName: "DBAses",
       badgeDescription: "Recognizes people who are part of DBAses.",
       badgeImageUrl: "https://badges.example.edu/badges/assets/dbases/bt_1/img",
@@ -106,6 +108,13 @@ describe("sendIssuanceEmailNotification", () => {
     expect(content.text).toContain("Add it to LinkedIn: https://www.linkedin.com/profile/add?");
     expect(content.text).not.toContain("Tenant ID");
     expect(content.text).not.toContain("Assertion ID");
+    expect(content.html).toContain("Download PDF");
+    expect(content.text).toContain(
+      "Download as PDF: https://badges.example.edu/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22/download.pdf",
+    );
+    // /verification answers JSON: the email sends people to the badge page instead
+    expect(content.html).not.toContain("/verification");
+    expect(content.text).not.toContain("/verification");
   });
 
   it("escapes badge text in the HTML part", () => {

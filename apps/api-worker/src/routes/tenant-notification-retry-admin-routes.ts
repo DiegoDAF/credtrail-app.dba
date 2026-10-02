@@ -94,6 +94,10 @@ export const registerTenantNotificationRetryAdminRoutes = (
             publicBadgeUrl: canonicalAppUrl(c.env.PUBLIC_APP_ORIGIN, badgePath),
             verificationUrl: canonicalAppUrl(c.env.PUBLIC_APP_ORIGIN, `${badgePath}/verification`),
             credentialDownloadUrl: canonicalAppUrl(c.env.PUBLIC_APP_ORIGIN, `${badgePath}/jsonld`),
+            credentialPdfDownloadUrl: canonicalAppUrl(
+              c.env.PUBLIC_APP_ORIGIN,
+              `${badgePath}/download.pdf`,
+            ),
             badgeDescription: assertion.achievementSnapshot.description,
             badgeImageUrl: assertion.achievementSnapshot.imageUri,
             theme: emailThemeFromBindings(c.env),

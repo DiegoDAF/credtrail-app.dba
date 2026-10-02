@@ -23,6 +23,8 @@ export interface SendIssuanceEmailNotificationInput {
   publicBadgeUrl: string;
   verificationUrl: string;
   credentialDownloadUrl: string;
+  /** Human-friendly PDF copy. The verification URL is a JSON API, so the email links the badge page instead. */
+  credentialPdfDownloadUrl?: string | undefined;
   /** Issuer display name shown as "Issued by". */
   issuerName?: string | undefined;
   badgeDescription?: string | null | undefined;
@@ -69,7 +71,9 @@ export const buildIssuanceEmailContent = (
     "",
     `View your badge: ${input.publicBadgeUrl}`,
     `Add it to LinkedIn: ${linkedInUrl}`,
-    `Verify it: ${input.verificationUrl}`,
+    ...(input.credentialPdfDownloadUrl === undefined
+      ? []
+      : [`Download as PDF: ${input.credentialPdfDownloadUrl}`]),
     `Download the credential: ${input.credentialDownloadUrl}`,
     "",
     "This badge is an Open Badges 3.0 verifiable credential, cryptographically signed by the issuer.",
@@ -103,7 +107,12 @@ export const buildIssuanceEmailContent = (
     `<div style="height:12px;line-height:12px;font-size:0;">&nbsp;</div>`,
     linkedInEmailButton(linkedInUrl),
     paragraph(
-      `${accentLink(input.verificationUrl, "Verify")} &nbsp;·&nbsp; ${accentLink(input.credentialDownloadUrl, "Download credential")}`,
+      [
+        ...(input.credentialPdfDownloadUrl === undefined
+          ? []
+          : [accentLink(input.credentialPdfDownloadUrl, "Download PDF")]),
+        accentLink(input.credentialDownloadUrl, "Download credential"),
+      ].join(" &nbsp;·&nbsp; "),
       "padding-top:22px;font-size:13px;line-height:20px;color:#64748b;text-align:center;",
     ),
   ].join("\n");

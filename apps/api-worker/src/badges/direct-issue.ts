@@ -624,6 +624,10 @@ export const createIssueBadgeForTenant = <
             `${publicBadgePath}/download`,
             credentialBaseUrl,
           ).toString(),
+          credentialPdfDownloadUrl: new URL(
+            `${publicBadgePath}/download.pdf`,
+            credentialBaseUrl,
+          ).toString(),
           issuerName: options?.issuerName ?? tenant.displayName,
           badgeDescription: achievement.description,
           badgeImageUrl: achievement.imageUri,
