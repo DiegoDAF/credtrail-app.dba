@@ -248,7 +248,8 @@ export const createPublicBadgePage = (
           {issuerName}
         </a>
       );
-    const pageTitle = `${badgeName} | CredTrail`;
+    // The issuer, not the platform: this is the title LinkedIn and other link previews show.
+    const pageTitle = `${badgeName} | ${issuerName}`;
     const pageDescription =
       nonEmptyText(achievementDetails.description) ??
       `${badgeName} credential issued by ${issuerName}.`;
@@ -355,6 +356,7 @@ export const createPublicBadgePage = (
         canonicalUrl: publicBadgeUrl,
         ogType: "article",
         imageUrl: socialImageUrl,
+        siteName: issuerName,
         extraHeadContent: (
           <>
             <link rel="alternate" type={VC_JSON_LD_MEDIA_TYPE} href={ob3JsonUrl} />

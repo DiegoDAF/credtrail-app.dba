@@ -447,8 +447,10 @@ describe("GET /badges/:badgeIdentifier", () => {
       '<meta name="description" content="Awarded for completing TypeScript fundamentals."',
     );
     expect(body).toContain(
-      '<meta property="og:title" content="TypeScript Foundations | CredTrail"',
+      '<meta property="og:title" content="TypeScript Foundations | Example University"',
     );
+    expect(body).toContain('<meta property="og:site_name" content="Example University"');
+    expect(body).not.toContain("| CredTrail");
     expect(body).toContain(
       '<meta property="og:url" content="https://credtrail.test/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22"',
     );

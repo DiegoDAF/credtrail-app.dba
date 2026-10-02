@@ -49,6 +49,8 @@ export const buildSeoHeadContent = (options: {
   ogType: "article" | "website";
   imageUrl?: string | null;
   robots?: string;
+  /** og:site_name; defaults to the platform name. */
+  siteName?: string;
   extraHeadContent?: HonoElement | readonly HonoElement[];
 }): HonoElement => {
   const imageUrl = options.imageUrl ?? null;
@@ -58,7 +60,7 @@ export const buildSeoHeadContent = (options: {
       <meta name="description" content={options.description} />
       <meta name="robots" content={options.robots ?? "index, follow"} />
       <link rel="canonical" href={options.canonicalUrl} />
-      <meta property="og:site_name" content="CredTrail" />
+      <meta property="og:site_name" content={options.siteName ?? "CredTrail"} />
       <meta property="og:type" content={options.ogType} />
       <meta property="og:title" content={options.title} />
       <meta property="og:description" content={options.description} />
