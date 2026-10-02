@@ -8,11 +8,8 @@ import {
 } from "./public-resource-network";
 
 interface CreateJsonObjectLoaderInput<BindingsType> {
-  appRequest: (
-    pathWithQuery: string,
-    init: RequestInit,
-    bindings: BindingsType,
-  ) => Promise<Response>;
+  /** Receives the absolute canonical URL, so production origin checks accept it. */
+  appRequest: (requestUrl: string, init: RequestInit, bindings: BindingsType) => Promise<Response>;
   asJsonObject: (value: unknown) => JsonObject | null;
   publicAppOrigin: (bindings: BindingsType) => string;
   publicResourceNetwork: (bindings: BindingsType) => PublicResourceNetwork;
@@ -74,9 +71,14 @@ export const createLoadJsonObjectFromUrl = <BindingsType>(
       const publicOrigin = canonicalAppOrigin(input.publicAppOrigin(context.env));
 
       if (parsedResourceUrl.origin === publicOrigin) {
-        const pathWithQuery = `${parsedResourceUrl.pathname}${parsedResourceUrl.search}`;
+        // Absolute URL on the canonical origin: a bare path would reach the app as
+        // http://localhost/... and production answers that with a 308 to the canonical origin.
+        const requestUrl = new URL(
+          `${parsedResourceUrl.pathname}${parsedResourceUrl.search}`,
+          publicOrigin,
+        ).toString();
         response = await input.appRequest(
-          pathWithQuery,
+          requestUrl,
           {
             method: "GET",
             headers: withCredTrailUserAgent({
