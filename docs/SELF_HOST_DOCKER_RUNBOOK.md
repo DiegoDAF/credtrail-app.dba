@@ -100,6 +100,11 @@ Required forwarded headers:
 - `X-Forwarded-Proto: https`
 - `X-Forwarded-Host: <institution-domain>`
 
+Set `TRUST_PROXY_HEADERS=true` so the Node runtime rebuilds the request origin from those headers.
+It is off by default: enable it only when the app port is reachable solely through a proxy that
+sets and overwrites them. Without it the app sees `http://` requests and, in production, answers
+every request with a 308 redirect to `PUBLIC_APP_ORIGIN`.
+
 Set `PLATFORM_DOMAIN` to the hostname used for issuer identifiers and credential identity. Do not
 include a scheme, path, or port. Set `PUBLIC_APP_ORIGIN` to the one externally reachable app origin,
 such as `https://credentials.example.edu`. CredTrail uses that origin for redirects, login, LTI,

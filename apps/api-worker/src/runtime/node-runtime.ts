@@ -140,6 +140,10 @@ export const parseNodeRuntimePort = (envSource: EnvSource = process.env): number
   return parsedPort;
 };
 
+export const parseNodeRuntimeTrustProxyHeaders = (envSource: EnvSource = process.env): boolean => {
+  return parseBooleanEnv(envSource, "TRUST_PROXY_HEADERS") ?? false;
+};
+
 export const parsePositiveIntegerEnv = (
   envSource: EnvSource,
   name: string,
