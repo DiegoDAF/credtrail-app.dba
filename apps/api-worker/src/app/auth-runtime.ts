@@ -1,3 +1,4 @@
+import { emailThemeFromBindings } from "../notifications/email-layout";
 import {
   findTenantAuthPolicy,
   findTenantById,
@@ -433,6 +434,7 @@ export const betterAuthProvider = createBetterAuthProvider<AppContext, AppBindin
             expiresAtIso: expiresAt,
             preferredLocale: input.preferredLocale,
             preferredTimeZone: input.preferredTimeZone,
+            theme: emailThemeFromBindings(context.env),
           });
           deliveryStatus = "sent";
         } catch {

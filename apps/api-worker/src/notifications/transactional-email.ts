@@ -8,6 +8,8 @@ export interface SendTransactionalEmailInput {
   recipientEmail: string;
   subject: string;
   text: string;
+  /** Optional HTML alternative; the text part is always sent too. */
+  html?: string | undefined;
   category: string;
 }
 
@@ -24,6 +26,7 @@ export const sendTransactionalEmail = async (input: SendTransactionalEmailInput)
     to: input.recipientEmail,
     subject: input.subject,
     text: input.text,
+    ...(input.html === undefined ? {} : { html: input.html }),
     headers: {
       "X-CredTrail-Email-Category": input.category,
     },

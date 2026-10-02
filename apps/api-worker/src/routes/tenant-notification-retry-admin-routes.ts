@@ -1,3 +1,4 @@
+import { emailThemeFromBindings } from "../notifications/email-layout";
 import { badgeRecordsReturnHref } from "../admin/learner-record-link";
 import { findAssertionById, findBadgeTemplateById } from "@credtrail/db";
 import { parseTenantPathParams, parseAssertionPathParams } from "@credtrail/validation";
@@ -93,6 +94,9 @@ export const registerTenantNotificationRetryAdminRoutes = (
             publicBadgeUrl: canonicalAppUrl(c.env.PUBLIC_APP_ORIGIN, badgePath),
             verificationUrl: canonicalAppUrl(c.env.PUBLIC_APP_ORIGIN, `${badgePath}/verification`),
             credentialDownloadUrl: canonicalAppUrl(c.env.PUBLIC_APP_ORIGIN, `${badgePath}/jsonld`),
+            badgeDescription: assertion.achievementSnapshot.description,
+            badgeImageUrl: assertion.achievementSnapshot.imageUri,
+            theme: emailThemeFromBindings(c.env),
           }),
       });
       return finish(

@@ -1,3 +1,4 @@
+import { emailThemeFromBindings, type EmailThemeBindings } from "../notifications/email-layout";
 import { prepareRenewableBadgeIssuance } from "./renewable-badge-issuance";
 import {
   attemptIssuanceEmail,
@@ -63,7 +64,7 @@ import {
   type TrustEdCredentialOb3Projection,
 } from "./trusted-credential-ob3-projection";
 
-interface IssueBadgeBindings {
+interface IssueBadgeBindings extends EmailThemeBindings {
   BADGE_OBJECTS: ImmutableCredentialStore;
   PLATFORM_DOMAIN: string;
   PUBLIC_APP_ORIGIN: string;
@@ -623,6 +624,10 @@ export const createIssueBadgeForTenant = <
             `${publicBadgePath}/download`,
             credentialBaseUrl,
           ).toString(),
+          issuerName: options?.issuerName ?? tenant.displayName,
+          badgeDescription: achievement.description,
+          badgeImageUrl: achievement.imageUri,
+          theme: emailThemeFromBindings(context.env),
         });
       },
     });

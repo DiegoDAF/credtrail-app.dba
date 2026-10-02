@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { formatMagicLinkExpiry, sendMagicLinkEmailNotification } from "./send-magic-link-email";
+import {
+  buildMagicLinkEmailContent,
+  formatMagicLinkExpiry,
+  sendMagicLinkEmailNotification,
+} from "./send-magic-link-email";
 
 const createEmailBinding = (): { emailBinding: SendEmail; send: ReturnType<typeof vi.fn> } => {
   const send = vi.fn(async () => {
@@ -104,5 +108,33 @@ describe("sendMagicLinkEmailNotification", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
 
     fetchSpy.mockRestore();
+  });
+
+  it("builds a branded HTML sign-in email with the link as a button and as text", () => {
+    const content = buildMagicLinkEmailContent({
+      fromName: "DBAses Badges",
+      recipientEmail: "owner@example.edu",
+      tenantId: "dbases",
+      magicLinkUrl: "https://badges.example.edu/auth/magic-link/verify?token=abc&next=%2F",
+      expiresAtIso: "2026-10-02T18:10:00.000Z",
+      theme: {
+        headerColor: "#000000",
+        accentColor: "#2e7d32",
+        highlightColor: "#55ff55",
+        logoUrl: "https://example.edu/logo.png",
+      },
+    });
+
+    expect(content.subject).toBe("Sign in to DBAses Badges (dbases)");
+    expect(content.html).toContain("Sign in to DBAses Badges");
+    expect(content.html).toContain(
+      'href="https://badges.example.edu/auth/magic-link/verify?token=abc&amp;next=%2F"',
+    );
+    expect(content.html).toContain('src="https://example.edu/logo.png"');
+    expect(content.html).toContain("#55ff55");
+    expect(content.text).toContain(
+      "https://badges.example.edu/auth/magic-link/verify?token=abc&next=%2F",
+    );
+    expect(content.text).toContain("you can ignore this email");
   });
 });
