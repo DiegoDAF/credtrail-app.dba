@@ -14,7 +14,9 @@ export const resolveDatabase = (bindings: AppBindings): SqlDatabase => {
     });
   }
 
-  if (bindings.APP_ENV === "production") {
+  // On Workers, production must go through Hyperdrive. The Node runtime (self-host) talks to
+  // Postgres directly through DATABASE_URL with a connection pool.
+  if (bindings.APP_ENV === "production" && bindings.RUNTIME !== "node") {
     throw new Error("HYPERDRIVE is required in production");
   }
 

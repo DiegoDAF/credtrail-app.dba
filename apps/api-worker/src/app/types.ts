@@ -8,6 +8,8 @@ import type { ObservabilityContextVariables } from "./observability";
 
 export interface AppBindings {
   APP_ENV: string;
+  /** Set to "node" by the Node runtime (self-host). Absent on Cloudflare Workers. */
+  RUNTIME?: "node";
   DATABASE_URL?: string;
   HYPERDRIVE?: Hyperdrive;
   BADGE_OBJECTS: ImmutableCredentialStore;

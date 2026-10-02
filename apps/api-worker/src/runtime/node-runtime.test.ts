@@ -56,6 +56,7 @@ describe("createNodeRuntimeBindings", () => {
     });
 
     expect(bindings.APP_ENV).toBe("production");
+    expect(bindings.RUNTIME).toBe("node");
     expect(bindings.PLATFORM_DOMAIN).toBe("badges.example.edu");
     expect(bindings.PUBLIC_APP_ORIGIN).toBe("https://badges.example.edu");
     expect(bindings.DATABASE_URL).toBe("postgres://example/db");

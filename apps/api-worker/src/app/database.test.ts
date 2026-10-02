@@ -58,6 +58,33 @@ describe("resolveDatabase", () => {
     ).toThrowError("HYPERDRIVE is required in production");
   });
 
+  it("uses DATABASE_URL with a pool in production on the Node runtime", () => {
+    const database = resolveDatabase(
+      bindings({
+        APP_ENV: "production",
+        RUNTIME: "node",
+        DATABASE_URL: "postgres://selfhost.example/db",
+      }),
+    );
+
+    expect(database).toBe(fakeDatabase);
+    expect(mockedCreatePostgresDatabase).toHaveBeenCalledWith({
+      databaseUrl: "postgres://selfhost.example/db",
+      connectionMode: "pool",
+    });
+  });
+
+  it("still requires DATABASE_URL in production on the Node runtime", () => {
+    expect(() =>
+      resolveDatabase(
+        bindings({
+          APP_ENV: "production",
+          RUNTIME: "node",
+        }),
+      ),
+    ).toThrowError("DATABASE_URL or HYPERDRIVE is required");
+  });
+
   it("keeps DATABASE_URL fallback outside production", () => {
     const database = resolveDatabase(
       bindings({

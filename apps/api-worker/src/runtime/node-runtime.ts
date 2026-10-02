@@ -197,6 +197,7 @@ export const createNodeRuntimeBindings = (envSource: EnvSource = process.env): A
 
   return {
     APP_ENV: appEnv,
+    RUNTIME: "node",
     PLATFORM_DOMAIN: platformDomain,
     PUBLIC_APP_ORIGIN: publicAppOrigin,
     BADGE_OBJECTS: badgeObjectsBinding,
