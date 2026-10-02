@@ -95,11 +95,14 @@ const createNodeEmailBinding = (envSource: EnvSource): SendEmail | undefined => 
       user: optionalEnv(envSource, "SMTP_USER"),
       password: optionalEnv(envSource, "SMTP_PASSWORD"),
       replyTo: optionalEnv(envSource, "TRANSACTIONAL_EMAIL_REPLY_TO"),
+      bcc: optionalEnv(envSource, "TRANSACTIONAL_EMAIL_BCC"),
     });
   }
 
   if (provider !== "ses") {
-    throw new Error(`Unsupported EMAIL_PROVIDER "${provider}". Node runtime supports "ses" and "smtp".`);
+    throw new Error(
+      `Unsupported EMAIL_PROVIDER "${provider}". Node runtime supports "ses" and "smtp".`,
+    );
   }
 
   requireEnv(envSource, "TRANSACTIONAL_EMAIL_FROM_ADDRESS");

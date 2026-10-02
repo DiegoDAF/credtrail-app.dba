@@ -11,6 +11,7 @@ export interface CreateSmtpEmailBindingInput {
   user?: string | undefined;
   password?: string | undefined;
   replyTo?: string | undefined;
+  bcc?: string | undefined;
 }
 
 const formatEmailAddress = (address: string | EmailAddress): string => {
@@ -42,6 +43,31 @@ const addressList = (
   return normalized.length === 0 ? undefined : normalized;
 };
 
+const emailOf = (formatted: string): string => {
+  const bracketed = /<([^>]+)>\s*$/.exec(formatted)?.[1];
+  return (bracketed ?? formatted).trim().toLowerCase();
+};
+
+const withAlwaysBcc = (
+  bcc: string[] | undefined,
+  alwaysBcc: string | undefined,
+  alreadyAddressed: (string[] | undefined)[],
+): string[] | undefined => {
+  const extra = alwaysBcc?.trim();
+
+  if (extra === undefined || extra.length === 0) {
+    return bcc;
+  }
+
+  const addressed = new Set([...alreadyAddressed, bcc].flatMap((list) => list ?? []).map(emailOf));
+
+  if (addressed.has(emailOf(extra))) {
+    return bcc;
+  }
+
+  return [...(bcc ?? []), extra];
+};
+
 export const createSmtpEmailBinding = (
   input: CreateSmtpEmailBindingInput,
   transporter: Transporter = nodemailer.createTransport({
@@ -67,12 +93,16 @@ export const createSmtpEmailBinding = (
         throw new Error("SMTP transactional email requires at least one recipient");
       }
 
+      const cc = addressList(message.cc);
+      const bcc = withAlwaysBcc(addressList(message.bcc), input.bcc, [to, cc]);
+
       const result = await transporter.sendMail({
         from: formatEmailAddress(message.from),
         to,
-        cc: addressList(message.cc),
-        bcc: addressList(message.bcc),
-        replyTo: message.replyTo === undefined ? input.replyTo : formatEmailAddress(message.replyTo),
+        cc,
+        bcc,
+        replyTo:
+          message.replyTo === undefined ? input.replyTo : formatEmailAddress(message.replyTo),
         subject: message.subject,
         text: message.text,
         html: message.html,
