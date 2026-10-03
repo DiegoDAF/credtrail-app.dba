@@ -134,7 +134,10 @@ const getFormValue = (formData: FormData, name: string): string => {
 };
 
 const clientIpFromRequest = (c: AppContext): string => {
-  const cloudflareIp = c.req.header("cf-connecting-ip")?.trim();
+  // Only Cloudflare's edge sets cf-connecting-ip. On the Node runtime nothing strips it, so a client
+  // could pick any value and dodge the per-IP magic-link limit; use the proxy's X-Forwarded-For there.
+  const cloudflareIp =
+    c.env.RUNTIME === "node" ? undefined : c.req.header("cf-connecting-ip")?.trim();
 
   if (cloudflareIp !== undefined && cloudflareIp.length > 0) {
     return cloudflareIp;

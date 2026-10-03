@@ -1152,6 +1152,45 @@ describe("magic-link auth routes", () => {
     );
   });
 
+  it("ignores cf-connecting-ip on the Node runtime and uses X-Forwarded-For", async () => {
+    mockedCountAuthMagicLinkRateLimitAttempts.mockResolvedValue(3);
+    const verifiedInputs: VerifyTurnstileTokenInput[] = [];
+    const turnstileVerifier: TurnstileVerifier = {
+      verify: (input) => {
+        verifiedInputs.push(input);
+        return Promise.resolve(true);
+      },
+    };
+    const { app: isolatedApp } = await loadAppWithMockedHostedAuthProviders();
+
+    const response = await isolatedApp.request(
+      "/v1/auth/magic-link/request",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "cf-connecting-ip": "203.0.113.10",
+          "x-forwarded-for": "198.51.100.7",
+        },
+        body: JSON.stringify({
+          tenantId: "tenant_123",
+          email: "learner@example.edu",
+          turnstileToken: "valid-turnstile-token",
+        }),
+      },
+      {
+        ...createEnv("production"),
+        RUNTIME: "node",
+        TURNSTILE_SITE_KEY: "turnstile-site-key",
+        TURNSTILE_SECRET_KEY: "turnstile-secret-key",
+        TURNSTILE_VERIFIER: turnstileVerifier,
+      },
+    );
+
+    expect(response.status).toBe(202);
+    expect(verifiedInputs).toEqual([expect.objectContaining({ remoteIp: "198.51.100.7" })]);
+  });
+
   it("delegates JSON verify to Better Auth-backed session creation instead of legacy token tables", async () => {
     const { app: isolatedApp, betterAuthProvider } = await loadAppWithMockedHostedAuthProviders();
 
