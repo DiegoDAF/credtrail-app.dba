@@ -12,6 +12,7 @@ vi.mock("@credtrail/db", async () => {
     findActiveOid4vciAccessTokenByHash: vi.fn(),
     findAssertionByPublicId: vi.fn(),
     findLearnerProfileById: vi.fn(),
+    findTenantLinkedInSettings: vi.fn(),
     findUserById: vi.fn(),
     listAllLtiIssuerRegistrations: vi.fn(),
     recordAssertionEngagementEvent: vi.fn(),
@@ -37,21 +38,22 @@ vi.mock("@credtrail/db/postgres", () => {
 
 import { type JsonObject, getImmutableCredentialObject } from "@credtrail/core-domain";
 import {
+  type AssertionEngagementEventRecord,
+  type AssertionRecord,
   consumeOid4vciPreAuthorizedCode,
   createOid4vciAccessToken,
   createOid4vciPreAuthorizedCode,
-  findAssertionById,
   findActiveOid4vciAccessTokenByHash,
+  findAssertionById,
   findAssertionByPublicId,
   findLearnerProfileById,
-  listAllLtiIssuerRegistrations,
-  recordAssertionEngagementEvent,
-  resolveAssertionLifecycleState,
-  type AssertionEngagementEventRecord,
-  type AssertionRecord,
+  findTenantLinkedInSettings,
   type LearnerProfileRecord,
+  listAllLtiIssuerRegistrations,
   type Oid4vciAccessTokenRecord,
   type Oid4vciPreAuthorizedCodeRecord,
+  recordAssertionEngagementEvent,
+  resolveAssertionLifecycleState,
   type SqlDatabase,
 } from "@credtrail/db";
 import { createPostgresDatabase } from "@credtrail/db/postgres";
@@ -67,6 +69,7 @@ const mockedCreateOid4vciAccessToken = vi.mocked(createOid4vciAccessToken);
 const mockedFindActiveOid4vciAccessTokenByHash = vi.mocked(findActiveOid4vciAccessTokenByHash);
 const mockedFindLearnerProfileById = vi.mocked(findLearnerProfileById);
 const mockedRecordAssertionEngagementEvent = vi.mocked(recordAssertionEngagementEvent);
+const mockedFindTenantLinkedInSettings = vi.mocked(findTenantLinkedInSettings);
 const mockedResolveAssertionLifecycleState = vi.mocked(resolveAssertionLifecycleState);
 const mockedGetImmutableCredentialObject = vi.mocked(getImmutableCredentialObject);
 const mockedListLtiIssuerRegistrations = vi.mocked(listAllLtiIssuerRegistrations);
@@ -277,6 +280,11 @@ const parseCredentialOfferForTest = (payload: unknown): ResolvedCredentialOfferF
 };
 
 beforeEach(() => {
+  mockedFindTenantLinkedInSettings.mockReset();
+  mockedFindTenantLinkedInSettings.mockResolvedValue({
+    tenantId: "tenant_123",
+    organizationId: null,
+  });
   mockedCreatePostgresDatabase.mockReset();
   mockedCreatePostgresDatabase.mockReturnValue(fakeDb);
   mockedFindAssertionByPublicId.mockReset();
@@ -407,6 +415,8 @@ describe("GET /badges/:badgeIdentifier", () => {
     expect(body).toContain("openid-credential-offer:");
     expect(body).toContain("credential_offer_uri=");
     expect(body).toContain("/credentials/v1/dcc/exchanges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22");
+    expect(body).toContain("Open in Learner Credential Wallet");
+    expect(body).toContain("https://lcw.app/request?request=");
     expect(body).toContain("Add to LinkedIn Profile");
     expect(body).toContain("/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22/share/linkedin-profile");
     expect(body).toContain(
@@ -784,6 +794,18 @@ describe("GET /badges/:badgeIdentifier", () => {
     expect(shareResponse.status).toBe(302);
     expect(shareResponse.headers.get("location")).toContain(
       "https://www.linkedin.com/sharing/share-offsite/",
+    );
+
+    const profileResponse = await app.request(
+      "/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22/share/linkedin-profile",
+      undefined,
+      env,
+    );
+
+    expect(profileResponse.status).toBe(302);
+    // The public id, like the issuance email: not the urn:credtrail:assertion URN.
+    expect(profileResponse.headers.get("location")).toContain(
+      "certId=40a6dc92-85ec-4cb0-8a50-afb2ae700e22",
     );
     expect(mockedRecordAssertionEngagementEvent).toHaveBeenCalledWith(
       fakeDb,

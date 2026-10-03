@@ -9,6 +9,7 @@ vi.mock("@credtrail/db", async () => {
 
   return {
     ...actual,
+    findTenantById: vi.fn(),
     listBadgeTemplates: vi.fn(),
     listTenantOrgUnits: vi.fn(),
     listBadgeTemplateOwnershipEvents: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock("@credtrail/db/postgres", () => {
 });
 
 import {
+  findTenantById,
   listBadgeTemplates,
   listTenantOrgUnits,
   listBadgeTemplateOwnershipEvents,
@@ -47,6 +49,7 @@ import { app } from "./index";
 import { readStyleAssetSource } from "./page-asset-test-utils";
 
 const PUBLIC_BADGE_CSS = readStyleAssetSource("publicBadgeCss");
+const mockedFindTenantById = vi.mocked(findTenantById);
 const mockedListBadgeTemplates = vi.mocked(listBadgeTemplates);
 const mockedListTenantOrgUnits = vi.mocked(listTenantOrgUnits);
 const mockedListBadgeTemplateOwnershipEvents = vi.mocked(listBadgeTemplateOwnershipEvents);
@@ -245,6 +248,7 @@ const sampleOwnershipEvent = (
 beforeEach(() => {
   mockedCreatePostgresDatabase.mockReset();
   mockedCreatePostgresDatabase.mockReturnValue(fakeDb);
+  mockedFindTenantById.mockReset();
   mockedListBadgeTemplates.mockReset();
   mockedListTenantOrgUnits.mockReset();
   mockedListBadgeTemplateOwnershipEvents.mockReset();
@@ -437,5 +441,30 @@ describe("GET /showcase/:tenantId/criteria", () => {
     expect(body).toContain("Badge Criteria Registry · tenant_123");
     expect(body).toContain("No public badge templates matched this view.");
     expect(body).toContain("/showcase/tenant_123?badgeTemplateId=badge_template_missing");
+  });
+
+  it("uses the tenant display name instead of the slug and the platform name", async () => {
+    mockedFindTenantById.mockResolvedValue({
+      id: "tenant_123",
+      slug: "tenant_123",
+      displayName: "DBAses",
+      planTier: "team",
+      issuerDomain: "dbases.com",
+      didWeb: "did:web:credtrail.test:tenant_123",
+      isActive: true,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    mockedListBadgeTemplates.mockResolvedValue([]);
+    mockedListTenantOrgUnits.mockResolvedValue([]);
+    mockedListBadgeIssuanceRules.mockResolvedValue([]);
+
+    const response = await app.request("/showcase/tenant_123/criteria", undefined, createEnv());
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('<meta property="og:title" content="Badge Criteria Registry · DBAses"');
+    expect(body).toContain('<meta property="og:site_name" content="DBAses"');
+    expect(body).not.toContain("| CredTrail");
   });
 });

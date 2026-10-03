@@ -5,6 +5,7 @@ vi.mock("@credtrail/db", async () => {
 
   return {
     ...actual,
+    findTenantById: vi.fn(),
     findUserById: vi.fn(),
     listPublicBadgeWallEntries: vi.fn(),
     resolveAssertionLifecycleState: vi.fn(),
@@ -18,6 +19,7 @@ vi.mock("@credtrail/db/postgres", () => {
 });
 
 import {
+  findTenantById,
   listPublicBadgeWallEntries,
   resolveAssertionLifecycleState,
   type PublicBadgeWallEntryRecord,
@@ -30,6 +32,7 @@ import { app } from "./index";
 import { readStyleAssetSource } from "./page-asset-test-utils";
 
 const PUBLIC_BADGE_CSS = readStyleAssetSource("publicBadgeCss");
+const mockedFindTenantById = vi.mocked(findTenantById);
 const mockedListPublicBadgeWallEntries = vi.mocked(listPublicBadgeWallEntries);
 const mockedResolveAssertionLifecycleState = vi.mocked(resolveAssertionLifecycleState);
 const mockedCreatePostgresDatabase = vi.mocked(createPostgresDatabase);
@@ -93,9 +96,36 @@ beforeEach(() => {
 
 describe("GET /showcase/:tenantId", () => {
   beforeEach(() => {
+    mockedFindTenantById.mockReset();
     mockedListPublicBadgeWallEntries.mockReset();
     mockedResolveAssertionLifecycleState.mockReset();
     mockedResolveAssertionLifecycleState.mockResolvedValue(sampleLifecycle());
+  });
+
+  it("uses the tenant display name instead of the slug and the platform name", async () => {
+    const env = createEnv();
+    mockedFindTenantById.mockResolvedValue({
+      id: "sakai",
+      slug: "sakai",
+      displayName: "Sakai Community",
+      planTier: "team",
+      issuerDomain: "sakailms.org",
+      didWeb: "did:web:credtrail.test:sakai",
+      isActive: true,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    mockedListPublicBadgeWallEntries.mockResolvedValue([samplePublicBadgeWallEntry()]);
+
+    const response = await app.request("/showcase/sakai", undefined, env);
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain(
+      '<meta property="og:title" content="Sakai 1000+ Commits Contributor · Sakai Community"',
+    );
+    expect(body).toContain('<meta property="og:site_name" content="Sakai Community"');
+    expect(body).not.toContain("| CredTrail");
   });
 
   it("renders public tenant badge wall entries with badge URLs", async () => {
