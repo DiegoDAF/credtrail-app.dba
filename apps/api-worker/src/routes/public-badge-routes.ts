@@ -1,5 +1,6 @@
 import type { ImmutableCredentialStore, JsonObject } from "@credtrail/core-domain";
 import {
+  findTenantById,
   indexBadgeIssuanceRuleVersionsByRuleId,
   listBadgeIssuanceRuleVersionApprovalEventsForVersions,
   listBadgeIssuanceRuleVersionApprovalStepsForVersions,
@@ -29,7 +30,6 @@ import { renderWalletQrCodeSvg, walletQrCodePayloadFromDeepLink } from "../badge
 import { canonicalAppRequestUrl } from "../http/canonical-app-url";
 import { renderAppPage, type AppPage } from "../ui/render-page";
 import { linkedInAddToProfileUrl, linkedInOrganizationIdForTenant } from "../utils/display-format";
-import { asString } from "../utils/value-parsers";
 
 interface PublicBadgeRouteValue {
   assertion: {
@@ -72,12 +72,14 @@ interface RegisterPublicBadgeRoutesInput<PublicBadgeValue extends PublicBadgeRou
     tenantId: string,
     entries: readonly PublicBadgeWallEntryViewRecord[],
     badgeTemplateId: string | null,
+    tenantDisplayName?: string | null,
   ) => AppPage;
   tenantBadgeCriteriaRegistryPage: (
     requestUrl: string,
     tenantId: string,
     model: PublicBadgeCriteriaRegistryViewModel,
     badgeTemplateId: string | null,
+    tenantDisplayName?: string | null,
   ) => AppPage;
   asNonEmptyString: (value: unknown) => string | null;
   SAKAI_SHOWCASE_TENANT_ID: string;
@@ -261,7 +263,8 @@ export const registerPublicBadgeRoutes = <PublicBadgeValue extends PublicBadgeRo
         issuerName: issuerNameFromCredential(value.credential),
         issuedAtIso: value.assertion.issuedAt,
         credentialUrl: publicBadgeUrl,
-        credentialId: asString(value.credential.id) ?? value.assertion.id,
+        // The public id, as in the badge URL and the issuance email (not the urn:credtrail:assertion URN).
+        credentialId: value.assertion.publicId,
         organizationId: linkedInOrganizationIdForTenant(
           linkedInOrganizationIds,
           value.assertion.tenantId,
@@ -404,6 +407,7 @@ export const registerPublicBadgeRoutes = <PublicBadgeValue extends PublicBadgeRo
         pathParams.tenantId,
         entriesWithLifecycle,
         badgeTemplateId,
+        (await findTenantById(db, pathParams.tenantId))?.displayName ?? null,
       ),
     );
   });
@@ -429,6 +433,7 @@ export const registerPublicBadgeRoutes = <PublicBadgeValue extends PublicBadgeRo
         pathParams.tenantId,
         model,
         badgeTemplateId,
+        (await findTenantById(db, pathParams.tenantId))?.displayName ?? null,
       ),
     );
   });

@@ -54,12 +54,14 @@ export interface PublicBadgePageRenderers {
     tenantId: string,
     entries: readonly PublicBadgeWallEntryViewRecord[],
     filterBadgeTemplateId: string | null,
+    tenantDisplayName?: string | null,
   ) => AppPage;
   tenantBadgeCriteriaRegistryPage: (
     requestUrl: string,
     tenantId: string,
     model: PublicBadgeCriteriaRegistryViewModel,
     filterBadgeTemplateId: string | null,
+    tenantDisplayName?: string | null,
   ) => AppPage;
 }
 

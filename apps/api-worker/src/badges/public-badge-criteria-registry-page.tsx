@@ -50,8 +50,9 @@ export const createTenantBadgeCriteriaRegistryPage = (
     tenantId: string,
     model: PublicBadgeCriteriaRegistryViewModel,
     filterBadgeTemplateId: string | null,
+    tenantDisplayName?: string | null,
   ): AppPage => {
-    const title = `Badge Criteria Registry · ${tenantId}`;
+    const title = `Badge Criteria Registry · ${tenantDisplayName ?? tenantId}`;
     const criteriaRegistryPath =
       filterBadgeTemplateId === null
         ? tenantBadgeCriteriaRegistryHref(tenantId)
@@ -350,7 +351,8 @@ export const createTenantBadgeCriteriaRegistryPage = (
           );
         })
       );
-    const pageTitle = `${title} | CredTrail`;
+    // With a tenant display name the title already names the issuer; the platform suffix is only a fallback.
+    const pageTitle = tenantDisplayName ? title : `${title} | CredTrail`;
     const socialImageUrl =
       model.templates
         .map((entry) => toAbsoluteWebUrl(requestUrl, entry.template.imageUri))
@@ -364,6 +366,7 @@ export const createTenantBadgeCriteriaRegistryPage = (
         canonicalUrl,
         ogType: "website",
         imageUrl: socialImageUrl,
+        ...(tenantDisplayName ? { siteName: tenantDisplayName } : {}),
       }),
       assets: ["publicBadgeCss"],
       variant: "open",
