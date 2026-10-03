@@ -410,6 +410,7 @@ export const createPublicBadgePage = (
             linkedInFeedSharePath={linkedInFeedSharePath}
             walletQrCodePath={walletImportUrls.walletQrCodePath}
             walletDeepLinkUrl={walletDeepLinkUrl}
+            learnerCredentialWalletUrl={walletImportUrls.dccWalletDeepLinkUrl}
             ob3JsonPath={ob3JsonPath}
           />
 

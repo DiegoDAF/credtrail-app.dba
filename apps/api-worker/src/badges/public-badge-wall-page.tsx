@@ -26,8 +26,9 @@ export const createTenantBadgeWallPage = (
     tenantId: string,
     entries: readonly PublicBadgeWallEntryViewRecord[],
     filterBadgeTemplateId: string | null,
+    tenantDisplayName?: string | null,
   ): AppPage => {
-    const displayTenantName = tenantId;
+    const displayTenantName = tenantDisplayName ?? tenantId;
     const firstBadgeTitle = entries.length > 0 ? (entries[0]?.badgeTitle ?? null) : null;
     const filterLabel = firstBadgeTitle ?? filterBadgeTemplateId;
     const heroEntry = filterBadgeTemplateId === null ? null : (entries[0] ?? null);
@@ -49,7 +50,8 @@ export const createTenantBadgeWallPage = (
       filterBadgeTemplateId === null
         ? tenantBadgeCriteriaRegistryHref(tenantId)
         : badgeTemplateCriteriaRegistryHref(tenantId, filterBadgeTemplateId);
-    const pageTitle = `${title} | CredTrail`;
+    // With a tenant display name the title already names the issuer; the platform suffix is only a fallback.
+    const pageTitle = tenantDisplayName ? title : `${title} | CredTrail`;
     const socialImageUrl =
       entries
         .map((entry) => toAbsoluteWebUrl(requestUrl, entry.badgeImageUri))
@@ -63,6 +65,7 @@ export const createTenantBadgeWallPage = (
         canonicalUrl,
         ogType: "website",
         imageUrl: socialImageUrl,
+        ...(tenantDisplayName ? { siteName: tenantDisplayName } : {}),
       }),
       assets: ["publicBadgeCss", "publicBadgeJs"],
       variant: "open",
