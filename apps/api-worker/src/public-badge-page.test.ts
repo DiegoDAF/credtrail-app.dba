@@ -280,6 +280,11 @@ const parseCredentialOfferForTest = (payload: unknown): ResolvedCredentialOfferF
 };
 
 beforeEach(() => {
+  mockedFindTenantLinkedInSettings.mockReset();
+  mockedFindTenantLinkedInSettings.mockResolvedValue({
+    tenantId: "tenant_123",
+    organizationId: null,
+  });
   mockedCreatePostgresDatabase.mockReset();
   mockedCreatePostgresDatabase.mockReturnValue(fakeDb);
   mockedFindAssertionByPublicId.mockReset();
@@ -410,6 +415,8 @@ describe("GET /badges/:badgeIdentifier", () => {
     expect(body).toContain("openid-credential-offer:");
     expect(body).toContain("credential_offer_uri=");
     expect(body).toContain("/credentials/v1/dcc/exchanges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22");
+    expect(body).toContain("Open in Learner Credential Wallet");
+    expect(body).toContain("https://lcw.app/request?request=");
     expect(body).toContain("Add to LinkedIn Profile");
     expect(body).toContain("/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22/share/linkedin-profile");
     expect(body).toContain(
@@ -827,6 +834,18 @@ describe("GET /badges/:badgeIdentifier", () => {
     expect(shareResponse.status).toBe(302);
     expect(shareResponse.headers.get("location")).toContain(
       "https://www.linkedin.com/sharing/share-offsite/",
+    );
+
+    const profileResponse = await app.request(
+      "/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22/share/linkedin-profile",
+      undefined,
+      env,
+    );
+
+    expect(profileResponse.status).toBe(302);
+    // The public id, like the issuance email: not the urn:credtrail:assertion URN.
+    expect(profileResponse.headers.get("location")).toContain(
+      "certId=40a6dc92-85ec-4cb0-8a50-afb2ae700e22",
     );
     expect(mockedRecordAssertionEngagementEvent).toHaveBeenCalledWith(
       fakeDb,

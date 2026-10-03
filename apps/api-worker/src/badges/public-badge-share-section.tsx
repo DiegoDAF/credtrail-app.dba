@@ -10,6 +10,8 @@ export const PublicBadgeShareSection = (input: {
   linkedInFeedSharePath: string;
   walletQrCodePath: string;
   walletDeepLinkUrl: string;
+  /** https://lcw.app/request deep link (DCC Learner Credential Wallet, VC-API exchange). */
+  learnerCredentialWalletUrl?: string;
   ob3JsonPath: string;
 }): HonoElement => {
   return (
@@ -72,6 +74,17 @@ export const PublicBadgeShareSection = (input: {
                   Open in wallet app
                 </PublicBadgeTextLink>
               </p>
+              {input.learnerCredentialWalletUrl === undefined ? null : (
+                <p class="public-badge__link-row">
+                  <PublicBadgeTextLink
+                    href={input.learnerCredentialWalletUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open in Learner Credential Wallet
+                  </PublicBadgeTextLink>
+                </p>
+              )}
               <p
                 id="chapi-store-row"
                 class="public-badge__link-row public-badge__wallet-browser-row"
