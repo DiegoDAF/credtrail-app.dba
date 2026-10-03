@@ -1093,6 +1093,80 @@ describe("POST /v1/tenants/:tenantId/assertions/manual-issue", () => {
     );
   });
 
+  it("leaves out the CredTrail context when TrustEd metadata only sets standard OB3 fields", async () => {
+    const signingMaterial = await generateTenantDidSigningMaterial({
+      did: "did:web:credtrail.test:tenant_123",
+    });
+    const env = {
+      ...createEnv(),
+      BADGE_OBJECTS: createInMemoryBadgeObjects(),
+      TENANT_SIGNING_REGISTRY_JSON: JSON.stringify({
+        "did:web:credtrail.test:tenant_123": {
+          tenantId: "tenant_123",
+          keyId: signingMaterial.keyId,
+          publicJwk: signingMaterial.publicJwk,
+          privateJwk: signingMaterial.privateJwk,
+        },
+      }),
+    };
+    // What the TrustEd form stores when only the criteria URL is filled in.
+    const trustedCredentialMetadataJson = JSON.stringify({
+      skills: [],
+      frameworkAlignments: [],
+      issuerAuthority: null,
+      evidence: [],
+      results: [],
+      criteria: { text: null, uri: "https://example.edu/criteria" },
+      assessments: [],
+      achievementType: null,
+      rubrics: [],
+      duration: null,
+      credits: null,
+      endorsements: [],
+    });
+
+    mockedFindActiveSessionByHash.mockResolvedValue(sampleSession());
+    mockedTouchSession.mockResolvedValue(undefined);
+    mockedFindBadgeTemplateById.mockResolvedValue(
+      sampleBadgeTemplate({ trustedCredentialMetadataJson }),
+    );
+    mockedFindAssertionByIdempotencyKey.mockResolvedValue(null);
+    mockedResolveLearnerProfileForIdentity.mockResolvedValue(sampleLearnerProfile());
+    mockedReserveAssertionStatusListIndex.mockResolvedValue(0);
+
+    const response = await app.request(
+      "/v1/tenants/tenant_123/assertions/manual-issue",
+      {
+        method: "POST",
+        headers: {
+          Origin: "http://localhost",
+          "Content-Type": "application/json",
+          Cookie: "better-auth.session_token=session-token",
+        },
+        body: JSON.stringify({
+          badgeTemplateId: "badge_template_001",
+          recipientIdentity: "student@umich.edu",
+          recipientIdentityType: "email",
+          idempotencyKey: "idem-trusted-standard-only",
+        }),
+      },
+      env,
+    );
+    const body = await response.json<ManualIssueResponse>();
+    const achievement = asJsonObject(asJsonObject(body.credential.credentialSubject)?.achievement);
+
+    expect(response.status).toBe(201);
+    // That context is not published at its URL: external verifiers fail to load it.
+    expect(body.credential["@context"]).toEqual([
+      "https://www.w3.org/ns/credentials/v2",
+      "https://purl.imsglobal.org/spec/ob/v3p0/context-3.0.3.json",
+      "https://www.w3.org/ns/credentials/status/v1",
+    ]);
+    expect(achievement?.criteria).toEqual(
+      expect.objectContaining({ id: "https://example.edu/criteria" }),
+    );
+  });
+
   it("warns and issues without TrustEd fields when stored metadata is invalid", async () => {
     const signingMaterial = await generateTenantDidSigningMaterial({
       did: "did:web:credtrail.test:tenant_123",

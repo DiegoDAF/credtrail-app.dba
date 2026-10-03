@@ -10,6 +10,7 @@ import {
   createTenantScopedId,
   getImmutableCredentialObject,
   logWarn,
+  pinnedJsonLdContextTermSets,
   storeImmutableCredentialObject,
   type ImmutableCredentialStore,
   type JsonObject,
@@ -213,11 +214,40 @@ const projectTrustEdMetadataForIssuance = (
     : emptyTrustEdOb3Projection();
 };
 
+// Terms that only the CredTrail trusted-credential context defines. That context is pinned for
+// CredTrail's own verifier but not published at its URL, so other verifiers cannot load it: only
+// reference it when the projection really uses one of its terms, as a property or as a type.
+const CREDTRAIL_TRUSTED_CREDENTIAL_TERMS: ReadonlySet<string> = new Set(
+  (pinnedJsonLdContextTermSets.get(CREDTRAIL_TRUSTED_CREDENTIAL_CONTEXT_URL) ?? []).filter(
+    (term) => term !== "id" && term !== "type",
+  ),
+);
+
+const jsonUsesAnyTerm = (value: unknown, terms: ReadonlySet<string>): boolean => {
+  if (Array.isArray(value)) {
+    return value.some((entry) => jsonUsesAnyTerm(entry, terms));
+  }
+
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+
+  return Object.entries(value).some(([key, entry]) => {
+    if (key === "type" || key === "@type") {
+      const typeValues: unknown[] = Array.isArray(entry) ? entry : [entry];
+      return typeValues.some((typeValue) => typeof typeValue === "string" && terms.has(typeValue));
+    }
+
+    return terms.has(key) || jsonUsesAnyTerm(entry, terms);
+  });
+};
+
 const trustEdProjectionHasExtensionTerms = (
   projection: TrustEdCredentialOb3Projection,
 ): boolean => {
   return (
-    Object.keys(projection.achievement).length > 0 || Object.keys(projection.subject).length > 0
+    jsonUsesAnyTerm(projection.achievement, CREDTRAIL_TRUSTED_CREDENTIAL_TERMS) ||
+    jsonUsesAnyTerm(projection.subject, CREDTRAIL_TRUSTED_CREDENTIAL_TERMS)
   );
 };
 
