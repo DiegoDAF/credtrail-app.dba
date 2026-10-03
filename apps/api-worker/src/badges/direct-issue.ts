@@ -242,6 +242,23 @@ const jsonUsesAnyTerm = (value: unknown, terms: ReadonlySet<string>): boolean =>
   });
 };
 
+/**
+ * The queue ingress reserves the assertion id and returns it to the API caller, so issuance keeps it.
+ * Only an id scoped to this tenant is accepted; anything else gets a fresh one.
+ */
+export const assertionIdForIssuance = (
+  requestedAssertionId: string | undefined,
+  tenantId: string,
+): string => {
+  const scopedPrefix = `${tenantId}:`;
+
+  return requestedAssertionId !== undefined &&
+    requestedAssertionId.startsWith(scopedPrefix) &&
+    requestedAssertionId.length > scopedPrefix.length
+    ? requestedAssertionId
+    : createTenantScopedId(tenantId);
+};
+
 const trustEdProjectionHasExtensionTerms = (
   projection: TrustEdCredentialOb3Projection,
 ): boolean => {
@@ -444,7 +461,7 @@ export const createIssueBadgeForTenant = <
       identityValue: request.recipientIdentity,
       ...(recipientDisplayName === undefined ? {} : { displayName: recipientDisplayName }),
     });
-    const assertionId = createTenantScopedId(tenantId);
+    const assertionId = assertionIdForIssuance(request.assertionId, tenantId);
     const statusListIndex = await reserveAssertionStatusListIndex(db, tenantId);
     const statusListCredentialUrl = revocationStatusListUrlForTenant(credentialBaseUrl, tenantId);
     const learnerIdentities = await listLearnerIdentitiesByProfile(db, tenantId, learnerProfile.id);

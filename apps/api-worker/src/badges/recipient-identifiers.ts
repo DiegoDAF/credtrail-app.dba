@@ -19,6 +19,8 @@ export type DirectIssueBadgeRequestBase = Pick<
 
 export type DirectIssueBadgeRequest = DirectIssueBadgeRequestBase & {
   readonly achievementSource: IssuanceAchievementSource;
+  /** Id reserved by the queue ingress and already returned to the API caller. */
+  readonly assertionId?: string;
 };
 
 const normalizeRecipientIdentifierValue = (

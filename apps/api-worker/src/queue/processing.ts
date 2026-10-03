@@ -15,6 +15,7 @@ import {
   isValidationParseError,
   type GenerateBadgeTemplateImageQueueJob,
   type ImportMigrationBatchQueueJob,
+  type IssueBadgeQueueJob,
   type ProcessAutomatedBadgeRuleQueueJob,
   type ProcessBadgeRuleLifecycleQueueJob,
   type ProcessQueueRequest,
@@ -60,6 +61,31 @@ export const readJsonBodyOrEmptyObject = async (c: RequestBodyContext): Promise<
   }
 
   return c.req.json<unknown>();
+};
+
+/** Builds the issuance request for an issue_badge job, keeping the assertion id the ingress returned. */
+export const directIssueRequestFromQueueJob = (
+  job: IssueBadgeQueueJob,
+): DirectIssueBadgeRequest => {
+  return {
+    recipientIdentity: job.payload.recipientIdentity,
+    recipientIdentityType: job.payload.recipientIdentityType,
+    ...(job.payload.recipientIdentifiers === undefined
+      ? {}
+      : { recipientIdentifiers: job.payload.recipientIdentifiers }),
+    ...(job.payload.recipientDisplayName === undefined
+      ? {}
+      : { recipientDisplayName: job.payload.recipientDisplayName }),
+    ...(job.payload.issuerImageUri === undefined
+      ? {}
+      : { issuerImageUri: job.payload.issuerImageUri }),
+    idempotencyKey: job.idempotencyKey,
+    ...(job.payload.lmsLearnerIdentity === undefined
+      ? {}
+      : { lmsLearnerIdentity: job.payload.lmsLearnerIdentity }),
+    achievementSource: job.payload.achievementSource,
+    assertionId: job.payload.assertionId,
+  };
 };
 
 export const processQueueInputWithDefaults = (input: ProcessQueueRequest): ProcessQueueConfig => {
@@ -155,31 +181,10 @@ const processQueuedJob = async <TBindings, TContext extends { env: TBindings }>(
       return;
     }
     case "issue_badge": {
-      const requestBase = {
-        recipientIdentity: job.payload.recipientIdentity,
-        recipientIdentityType: job.payload.recipientIdentityType,
-        ...(job.payload.recipientIdentifiers === undefined
-          ? {}
-          : { recipientIdentifiers: job.payload.recipientIdentifiers }),
-        ...(job.payload.recipientDisplayName === undefined
-          ? {}
-          : { recipientDisplayName: job.payload.recipientDisplayName }),
-        ...(job.payload.issuerImageUri === undefined
-          ? {}
-          : { issuerImageUri: job.payload.issuerImageUri }),
-        idempotencyKey: job.idempotencyKey,
-        ...(job.payload.lmsLearnerIdentity === undefined
-          ? {}
-          : { lmsLearnerIdentity: job.payload.lmsLearnerIdentity }),
-      };
-      const issueRequest: DirectIssueBadgeRequest = {
-        ...requestBase,
-        achievementSource: job.payload.achievementSource,
-      };
       await dependencies.issueBadgeForTenant(
         c,
         job.tenantId,
-        issueRequest,
+        directIssueRequestFromQueueJob(job),
         job.payload.requestedByUserId,
       );
       return;
