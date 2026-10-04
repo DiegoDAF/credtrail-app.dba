@@ -49,7 +49,7 @@ describe("createNodeRuntimeBindings", () => {
       BADGE_IMAGE_GENERATION_MODEL: "@cf/black-forest-labs/flux-2-klein-9b",
       S3_BUCKET: "credtrail-badges",
       S3_REGION: "us-east-1",
-      S3_ENDPOINT: "http://minio:9000",
+      S3_ENDPOINT: "http://s3:9000",
       S3_FORCE_PATH_STYLE: "true",
       AWS_ACCESS_KEY_ID: "access",
       AWS_SECRET_ACCESS_KEY: "secret",

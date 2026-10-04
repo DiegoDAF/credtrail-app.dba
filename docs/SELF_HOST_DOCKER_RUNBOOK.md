@@ -8,7 +8,7 @@ S3-compatible object storage.
 - API runtime: Node (`apps/api-worker/src/node-server.ts`)
 - Queue worker: Node polling process (`apps/api-worker/src/node-worker.ts`)
 - Database: Postgres 14+
-- Object storage: S3-compatible API (AWS S3, MinIO, Ceph RGW, etc.)
+- Object storage: an existing AWS S3 or Cloudflare R2 bucket
 - Production installs must run with `APP_ENV=production`. The Docker image defaults to
   production, and the reference compose stack sets `APP_ENV=production`.
 
@@ -16,11 +16,9 @@ S3-compatible object storage.
 
 - `DATABASE_URL`
 - `S3_BUCKET`
-- `S3_REGION`
+- `S3_REGION` (the AWS bucket region, or `auto` for R2)
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
-- `S3_ENDPOINT` (required for non-AWS providers)
-- `S3_FORCE_PATH_STYLE` (`true` for MinIO/Ceph path-style deployments)
 - `PLATFORM_DOMAIN`
 - `PUBLIC_APP_ORIGIN` (the public app origin, including `https://` and any non-default port)
 - `APP_ENV`
@@ -30,6 +28,8 @@ S3-compatible object storage.
 
 Optional:
 
+- `S3_ENDPOINT` (required for R2; leave empty for AWS S3)
+- `S3_FORCE_PATH_STYLE` (defaults to `false`)
 - `TRUSTED_PROXY_CIDRS` (comma-separated IPv4/IPv6 addresses or CIDRs; empty by default)
 - `JOB_PROCESSOR_TOKEN`
 - `AWS_SESSION_TOKEN`
@@ -48,27 +48,74 @@ Worker notes:
 
 ## Local Validation with Docker Compose
 
-Use the provided compose stack to validate the self-host production runtime locally:
+The Compose stack starts Postgres, runs database migrations, and starts the API and queue worker.
+Credentials and artwork are stored in your S3 or R2 bucket. Create a private bucket before starting
+the stack; Compose does not create or manage it.
+
+From the app repository, copy the storage settings template:
 
 ```bash
-docker compose -f docker-compose.selfhost.yml up --build
+cp .env.selfhost.example .env.selfhost
 ```
+
+Edit `.env.selfhost` on your machine. This file is gitignored. Enter your bucket settings and
+credentials there; keep them out of commits, issue reports, and chat messages.
+
+For AWS S3, use the bucket's region and leave `S3_ENDPOINT` empty:
+
+```dotenv
+S3_BUCKET=your-credtrail-bucket
+S3_REGION=us-east-1
+S3_ENDPOINT=
+S3_FORCE_PATH_STYLE=false
+AWS_ACCESS_KEY_ID=your-access-key-id
+AWS_SECRET_ACCESS_KEY=your-secret-access-key
+```
+
+Give the AWS identity access to check the bucket and read, write, and delete objects:
+`s3:ListBucket` on the bucket, and `s3:GetObject`, `s3:PutObject`, and `s3:DeleteObject` on its objects.
+Keep the bucket private; CredTrail serves public credential and artwork URLs through the app.
+
+For Cloudflare R2, use `auto` as the region and the S3 API endpoint from your bucket's dashboard:
+
+```dotenv
+S3_BUCKET=your-credtrail-bucket
+S3_REGION=auto
+S3_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+S3_FORCE_PATH_STYLE=false
+AWS_ACCESS_KEY_ID=your-r2-access-key-id
+AWS_SECRET_ACCESS_KEY=your-r2-secret-access-key
+```
+
+Create an R2 API token with **Object Read & Write** access restricted to this bucket. Use its S3
+Access Key ID and Secret Access Key. See [R2 authentication](https://developers.cloudflare.com/r2/api/tokens/)
+and the [R2 SDK configuration](https://developers.cloudflare.com/r2/examples/aws/aws-sdk-js-v3/).
+
+Start the stack with your local settings:
+
+```bash
+docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml up --build --wait
+```
+
+The API becomes healthy when the database and bucket are reachable. Missing required bucket
+settings stop Compose with a message naming the value to supply.
 
 No `JOB_PROCESSOR_TOKEN` is needed for this stack. The API and queue worker use the packaged
 Node bundles, and the worker processes jobs directly against Postgres.
-The local object-storage image builds the server and client from pinned upstream MinIO releases
-using `Dockerfile.selfhost-storage`; it does not depend on unavailable upstream container tags.
-The first build needs network access and takes longer; Docker caches subsequent builds.
 
-Postgres records and object storage use the named volumes `postgres-data` and `minio-data`.
-Docker Compose prefixes their names with the project name. Keep the same project name when
-restarting or upgrading so the stack reuses its data. A normal
-`docker compose -f docker-compose.selfhost.yml down` preserves both volumes; the next `up` reuses
-them. Use `down --volumes` only when deliberately deleting this install's stored data. Keep regular
-database and object-storage backups as well.
+Postgres records use the named volume `postgres-data`. Docker Compose prefixes its name with the
+project name. Keep the same project name when restarting or upgrading so the stack reuses its data.
+To stop the stack and preserve the database, run:
 
-The compose stack intentionally leaves outbound email disabled. This keeps local validation from
-pretending to send mail with fake AWS credentials.
+```bash
+docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml down
+```
+
+The next `up` reuses the database volume. `down --volumes` deletes the local database; it does not
+delete objects from your external bucket. Keep regular database and bucket backups.
+
+The Compose stack leaves outbound email disabled. Configure email delivery before offering
+production email sign-in or invitations.
 
 Do not use `APP_ENV=development` for real self-host installs. Development mode enables local
 debugging behavior such as single-use database connections and development auth shortcuts.
@@ -83,6 +130,9 @@ enabling magic-link, password-reset, invite, or issuance emails. If `EMAIL_PROVI
 email delivery is disabled; configure SES before offering production email sign-in or invitations.
 
 Production SES example:
+
+The current SES adapter uses the same AWS credential variables as storage. This example requires
+AWS credentials with both S3 and SES permissions. R2 API credentials cannot authenticate SES.
 
 ```yaml
 EMAIL_PROVIDER: ses
@@ -166,9 +216,12 @@ records actual production magic-link delivery in memory and verifies the confirm
 flow and secure cookie. No real mailbox is contacted by either check.
 
 CI also verifies the shipped Compose file with `scripts/selfhost-compose-smoke.mjs`. This check
-uses the built image in an isolated project without published host ports. It verifies API readiness,
-queue processing without a queue token, and database/object retention through a normal `down`/`up`
-cycle. It deletes only its own temporary volumes when finished. Run it locally after building:
+uses the built image in an isolated project without published host ports. A disposable S3 emulator
+runs outside the Compose stack to represent an external bucket. The check uses only disposable
+credentials and does not read `.env.selfhost` or contact your cloud storage. It verifies API
+readiness, queue processing without a queue token, database retention, and access to the same
+external object through a normal `down`/`up` cycle. It removes its own test resources when finished.
+This check does not validate a live AWS or R2 account. Run it locally after building:
 
 ```bash
 node scripts/selfhost-compose-smoke.mjs --image credtrail-selfhost:test

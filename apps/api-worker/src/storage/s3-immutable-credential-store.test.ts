@@ -200,7 +200,7 @@ describe("createS3ImmutableCredentialStore", () => {
       region: "us-east-1",
       accessKeyId: "test-access-key",
       secretAccessKey: "test-secret-key",
-      endpoint: "http://minio:9000",
+      endpoint: "http://s3:9000",
       forcePathStyle: true,
     });
   };

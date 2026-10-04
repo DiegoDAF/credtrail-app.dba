@@ -10,12 +10,14 @@ x-selfhost-env: &selfhost_env
   # TRANSACTIONAL_EMAIL_FROM_ADDRESS: no-reply@example.edu
   DATABASE_URL: postgres://credtrail:credtrail@postgres:5432/credtrail
   STORAGE_BACKEND: s3
-  S3_ENDPOINT: http://minio:9000
-  S3_BUCKET: credtrail-badges
-  S3_REGION: us-east-1
-  S3_FORCE_PATH_STYLE: "true"
-  AWS_ACCESS_KEY_ID: minioadmin
-  AWS_SECRET_ACCESS_KEY: minioadmin
+  # Use an existing AWS S3 or Cloudflare R2 bucket. See .env.selfhost.example.
+  S3_ENDPOINT: ${S3_ENDPOINT:-}
+  S3_BUCKET: ${S3_BUCKET:?Set S3_BUCKET to your existing S3 or R2 bucket}
+  S3_REGION: ${S3_REGION:?Set S3_REGION to the AWS region or auto for R2}
+  S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?Set AWS_ACCESS_KEY_ID for your bucket}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?Set AWS_SECRET_ACCESS_KEY for your bucket}
+  AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
 
 services:
   postgres:
@@ -34,32 +36,6 @@ services:
       timeout: 3s
       retries: 30
 
-  minio:
-    build:
-      context: .
-      dockerfile: Dockerfile.selfhost-storage
-    command: server /data --console-address :9001
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio-data:/data
-
-  minio-setup:
-    build:
-      context: .
-      dockerfile: Dockerfile.selfhost-storage
-    depends_on:
-      - minio
-    entrypoint: >
-      /bin/sh -c "
-      until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done;
-      mc mb --ignore-existing local/credtrail-badges;
-      "
-
   migrate:
     build:
       context: .
@@ -77,8 +53,6 @@ services:
       dockerfile: Dockerfile
     depends_on:
       migrate:
-        condition: service_completed_successfully
-      minio-setup:
         condition: service_completed_successfully
     environment:
       <<: *selfhost_env
@@ -104,8 +78,6 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      minio-setup:
-        condition: service_completed_successfully
     command: ["node", "dist/node-runtime/node-worker-runtime.js"]
     environment:
       <<: *selfhost_env
@@ -113,4 +85,3 @@ services:
 
 volumes:
   postgres-data:
-  minio-data:

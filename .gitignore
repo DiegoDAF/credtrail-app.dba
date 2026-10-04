@@ -9,6 +9,7 @@ coverage/
 # Local project surfaces
 .local/
 .dev.vars.local
+.env.selfhost
 wrangler.local.jsonc
 .auth/
 .beads/
