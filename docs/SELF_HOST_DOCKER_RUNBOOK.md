@@ -54,6 +54,19 @@ Use the provided compose stack to validate the self-host production runtime loca
 docker compose -f docker-compose.selfhost.yml up --build
 ```
 
+No `JOB_PROCESSOR_TOKEN` is needed for this stack. The API and queue worker use the packaged
+Node bundles, and the worker processes jobs directly against Postgres.
+The local object-storage image builds the server and client from pinned upstream MinIO releases
+using `Dockerfile.selfhost-storage`; it does not depend on unavailable upstream container tags.
+The first build needs network access and takes longer; Docker caches subsequent builds.
+
+Postgres records and object storage use the named volumes `postgres-data` and `minio-data`.
+Docker Compose prefixes their names with the project name. Keep the same project name when
+restarting or upgrading so the stack reuses its data. A normal
+`docker compose -f docker-compose.selfhost.yml down` preserves both volumes; the next `up` reuses
+them. Use `down --volumes` only when deliberately deleting this install's stored data. Keep regular
+database and object-storage backups as well.
+
 The compose stack intentionally leaves outbound email disabled. This keeps local validation from
 pretending to send mail with fake AWS credentials.
 
@@ -143,7 +156,7 @@ node scripts/selfhost-production-smoke.mjs --image credtrail-selfhost:test
 ```
 
 The driver owns disposable Postgres, S3, API/worker, network and TLS proxy resources and removes
-them on exit. CI runs this same driver as its single Docker acceptance stack. Both API and worker
+them on exit. CI runs this same driver for the production HTTP contracts. Both API and worker
 run in production on Node 24. It checks database/storage health, S3 immutable writes/read/metadata/
 deletion, discovery, real login CSS/JS/fonts and their HTTP policies/logs, the browser login script,
 TLS POST and CSRF behavior, spoof-resistant client IP limits, the namespace route, lifecycle jobs,
@@ -151,6 +164,15 @@ queued issuance identity and replay, and active/revoked status lists.
 Its browser uses a nonexistent recipient so it sends no email. A Postgres integration test separately
 records actual production magic-link delivery in memory and verifies the confirmation/consumption
 flow and secure cookie. No real mailbox is contacted by either check.
+
+CI also verifies the shipped Compose file with `scripts/selfhost-compose-smoke.mjs`. This check
+uses the built image in an isolated project without published host ports. It verifies API readiness,
+queue processing without a queue token, and database/object retention through a normal `down`/`up`
+cycle. It deletes only its own temporary volumes when finished. Run it locally after building:
+
+```bash
+node scripts/selfhost-compose-smoke.mjs --image credtrail-selfhost:test
+```
 
 Offline signature acceptance uses released `jsonld-signatures` 11.6.0, `@digitalbazaar/data-integrity`
 2.5.0 and `@digitalbazaar/eddsa-rdfc-2022-cryptosuite` 1.3.0 as test-only dependencies. Base and

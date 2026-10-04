@@ -79,6 +79,9 @@ jobs:
       - name: Verify production self-host contracts through TLS
         run: node scripts/selfhost-production-smoke.mjs --image credtrail-ci:${{ github.sha }}
 
+      - name: Verify reference Compose startup and persistence
+        run: node scripts/selfhost-compose-smoke.mjs --image credtrail-ci:${{ github.sha }}
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 10

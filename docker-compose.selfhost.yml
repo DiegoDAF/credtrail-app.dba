@@ -16,7 +16,6 @@ x-selfhost-env: &selfhost_env
   S3_FORCE_PATH_STYLE: "true"
   AWS_ACCESS_KEY_ID: minioadmin
   AWS_SECRET_ACCESS_KEY: minioadmin
-  JOB_PROCESSOR_TOKEN: ${JOB_PROCESSOR_TOKEN:?set JOB_PROCESSOR_TOKEN to a generated secret}
 
 services:
   postgres:
@@ -27,6 +26,8 @@ services:
       POSTGRES_DB: credtrail
     ports:
       - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U credtrail -d credtrail"]
       interval: 2s
@@ -34,7 +35,9 @@ services:
       retries: 30
 
   minio:
-    image: minio/minio:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.selfhost-storage
     command: server /data --console-address :9001
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -42,9 +45,13 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
+    volumes:
+      - minio-data:/data
 
   minio-setup:
-    image: minio/mc:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.selfhost-storage
     depends_on:
       - minio
     entrypoint: >
@@ -99,7 +106,11 @@ services:
         condition: service_completed_successfully
       minio-setup:
         condition: service_completed_successfully
-    command: ["pnpm", "exec", "tsx", "src/node-worker.ts"]
+    command: ["node", "dist/node-runtime/node-worker-runtime.js"]
     environment:
       <<: *selfhost_env
       JOB_POLL_INTERVAL_MS: "1000"
+
+volumes:
+  postgres-data:
+  minio-data:
