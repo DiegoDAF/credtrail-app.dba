@@ -30,6 +30,7 @@ S3-compatible object storage.
 
 Optional:
 
+- `TRUSTED_PROXY_CIDRS` (comma-separated IPv4/IPv6 addresses or CIDRs; empty by default)
 - `JOB_PROCESSOR_TOKEN`
 - `AWS_SESSION_TOKEN`
 - `EMAIL_PROVIDER` (`ses` for AWS SES, or omit to disable outbound email)
@@ -40,7 +41,10 @@ Optional:
 Worker notes:
 
 - The worker process runs the same queue-processing route logic in-process.
-- Configure worker containers with the same DB/storage credentials as the API container.
+- Configure worker containers with the same DB/storage credentials and production auth secret as
+  the API container. Runtime identity is assigned by the Node factory, not an environment override.
+- Production Node API and worker use pooled `DATABASE_URL` connections. The Cloudflare Worker
+  runtime continues to require Hyperdrive in production. Missing Node `DATABASE_URL` fails startup.
 
 ## Local Validation with Docker Compose
 
@@ -63,7 +67,7 @@ the deployment.
 For outbound email, the Node self-host runtime supports `EMAIL_PROVIDER=ses`. Configure AWS
 credentials with SES send permissions and verify `TRANSACTIONAL_EMAIL_FROM_ADDRESS` in SES before
 enabling magic-link, password-reset, invite, or issuance emails. If `EMAIL_PROVIDER` is omitted,
-email delivery is a silent no-op.
+email delivery is disabled; configure SES before offering production email sign-in or invitations.
 
 Production SES example:
 
@@ -98,12 +102,62 @@ Terminate TLS at your edge/load balancer (ALB, NGINX, Traefik, ingress controlle
 Required forwarded headers:
 
 - `X-Forwarded-Proto: https`
-- `X-Forwarded-Host: <institution-domain>`
+- `X-Forwarded-Host: <institution-domain>` (include the public port when it is not the default)
+- `X-Forwarded-For`: append the real client address to a sanitized address chain
+
+Set `TRUSTED_PROXY_CIDRS` to the actual socket addresses or narrow CIDRs of your controlled
+proxies, for example `192.0.2.10/32,2001:db8:1::10/128` (documentation-only sample addresses).
+Forwarded origin and client-IP headers are ignored by default. Trust is rooted in the socket peer;
+CredTrail walks the address chain from the proxy toward the client and stops at the first untrusted
+address. The proxy must overwrite forwarded protocol/host and safely append or sanitize the address
+chain. Do not trust a whole shared container network that also includes clients or its client gateway.
+Node ignores caller-supplied Cloudflare IP headers. The Worker runtime uses only its validated
+Cloudflare edge IP. Missing transport identity uses the shared unknown rate-limit bucket.
+
+Loopback HTTP GET/HEAD probes for `/healthz` and `/healthz/dependencies` are supported in
+production Node containers even when `PUBLIC_APP_ORIGIN` uses HTTPS. Other paths and origins
+retain canonical redirects. Forwarded origin normalization preserves POST bodies, cookies and
+request cancellation before CSRF/authentication middleware runs.
 
 Set `PLATFORM_DOMAIN` to the hostname used for issuer identifiers and credential identity. Do not
 include a scheme, path, or port. Set `PUBLIC_APP_ORIGIN` to the one externally reachable app origin,
 such as `https://credentials.example.edu`. CredTrail uses that origin for redirects, login, LTI,
 emails, badge artwork, and other public app URLs; it does not infer these URLs from request headers.
+
+## Packaged UI assets and production acceptance
+
+The final image includes generated UI CSS, JavaScript and fonts at `/app/public/assets/ui`.
+The Node adapter resolves this directory from its installed bundle, independently of the current
+working directory. It serves GET/HEAD only, enforces real-path containment (including symlinks),
+and returns accurate content types with `nosniff`. Content-hashed files receive immutable year-long
+caching; any unversioned assets receive a bounded one-hour cache. The current font is content-hashed.
+
+Run the production acceptance driver after building an image:
+
+```bash
+docker build -t credtrail-selfhost:test .
+pnpm exec playwright install --with-deps chromium
+node scripts/selfhost-production-smoke.mjs --image credtrail-selfhost:test
+```
+
+The driver owns disposable Postgres, S3, API/worker, network and TLS proxy resources and removes
+them on exit. Both API and worker run in production on Node 24. It checks database/storage health,
+real login CSS/JS/fonts, the browser login script, TLS POST and CSRF behavior, spoof-resistant client
+IP limits, the namespace route, queued issuance identity and replay, and active/revoked status lists.
+Its browser uses a nonexistent recipient so it sends no email. A Postgres integration test separately
+records actual production magic-link delivery in memory and verifies the confirmation/consumption
+flow and secure cookie. No real mailbox is contacted by either check.
+
+Offline signature acceptance uses released `jsonld-signatures` 11.6.0, `@digitalbazaar/data-integrity`
+2.5.0 and `@digitalbazaar/eddsa-rdfc-2022-cryptosuite` 1.3.0 as test-only dependencies. Base and
+full TrustEd fixtures use authoritative VC v2, OB3 3.0.3 and status v1 context documents with SHA-256
+provenance under `packages/core-domain/src/contexts`; tests also reject altered signed content.
+
+The extension vocabulary identifier remains `https://credtrail.org/ns/trusted-credential/v1` on
+self-hosted credentials. The app provides an unauthenticated GET/HEAD route returning its signing
+context as `application/ld+json` with public caching and an ETag. After an authorized release, verify
+that the canonical public URL serves that same document; local smoke success does not establish
+public deployment. Do not rewrite existing immutable signed credentials.
 
 ## Upgrade Procedure (Image Tag N -> N+1)
 

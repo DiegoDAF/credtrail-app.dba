@@ -91,6 +91,7 @@ jobs:
 
           DATABASE_URL="postgresql://credtrail:credtrail@credtrail-ci-postgres:5432/credtrail"
           JOB_PROCESSOR_TOKEN="$(openssl rand -hex 32)"
+          BETTER_AUTH_SECRET="$(openssl rand -hex 32)"
 
           docker run -d \
             --name credtrail-ci-postgres \
@@ -174,7 +175,8 @@ jobs:
             --name credtrail-ci-app \
             --network credtrail-ci-net \
             -p 8787:8787 \
-            -e APP_ENV=test \
+            -e APP_ENV=production \
+            -e BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
             -e PLATFORM_DOMAIN=localhost \
             -e PUBLIC_APP_ORIGIN=http://localhost:8787 \
             -e DATABASE_URL="$DATABASE_URL" \
@@ -204,7 +206,7 @@ jobs:
               -sS \
               -o /dev/null \
               -w '%{http_code}' \
-              http://127.0.0.1:8787/ims/ob/v3p0/discovery || true)"
+              http://localhost:8787/ims/ob/v3p0/discovery || true)"
             deps_status="$(curl \
               --connect-timeout 2 \
               --max-time 5 \
@@ -263,7 +265,8 @@ jobs:
           docker run -d \
             --name credtrail-ci-worker \
             --network credtrail-ci-net \
-            -e APP_ENV=test \
+            -e APP_ENV=production \
+            -e BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
             -e PLATFORM_DOMAIN=localhost \
             -e PUBLIC_APP_ORIGIN=http://localhost:8787 \
             -e DATABASE_URL="$DATABASE_URL" \
@@ -301,6 +304,12 @@ jobs:
 
             sleep 1
           done
+
+      - name: Install production smoke browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Verify production self-host contracts through TLS
+        run: node scripts/selfhost-production-smoke.mjs --image credtrail-ci:${{ github.sha }}
 
   e2e:
     runs-on: ubuntu-latest

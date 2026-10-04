@@ -1,75 +1,71 @@
 import type { SqlDatabase } from "@credtrail/db";
-import { createPostgresDatabase } from "@credtrail/db/postgres";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { CreatePostgresDatabaseOptions } from "@credtrail/db/postgres";
+import { describe, expect, it } from "vitest";
 import type { AppBindings } from "./types";
-import { resolveDatabase } from "./database";
-
-vi.mock("@credtrail/db/postgres", () => {
-  return {
-    createPostgresDatabase: vi.fn(),
-  };
+import { createDatabaseResolver } from "./database";
+const bindings = (input: Partial<AppBindings>): AppBindings => ({
+  APP_ENV: "test",
+  PLATFORM_DOMAIN: "badges.example.edu",
+  PUBLIC_APP_ORIGIN: "https://badges.example.edu",
+  BADGE_OBJECTS: {
+    head: async () => null,
+    get: async () => null,
+    put: async () => null,
+    delete: async () => undefined,
+  },
+  ...input,
 });
-
-const mockedCreatePostgresDatabase = vi.mocked(createPostgresDatabase);
-const fakeDatabase = {} as SqlDatabase;
-
-const bindings = (input: Partial<AppBindings>): AppBindings => {
-  return {
-    APP_ENV: "test",
-    BADGE_OBJECTS: {} as AppBindings["BADGE_OBJECTS"],
-    PLATFORM_DOMAIN: "credtrail.test",
-    PUBLIC_APP_ORIGIN: "https://credtrail.test",
-    ...input,
+describe("database runtime policy", () => {
+  const calls: CreatePostgresDatabaseOptions[] = [];
+  const db: SqlDatabase = {
+    prepare: () => {
+      throw new Error("Recording database is not queried");
+    },
   };
-};
-
-describe("resolveDatabase", () => {
-  beforeEach(() => {
-    mockedCreatePostgresDatabase.mockReset();
-    mockedCreatePostgresDatabase.mockReturnValue(fakeDatabase);
+  const resolve = createDatabaseResolver((input) => {
+    calls.push(input);
+    return db;
   });
-
-  it("uses Hyperdrive with single-use connections when the binding is present", () => {
-    const database = resolveDatabase(
+  it("uses single-use Hyperdrive, including production Workers", () => {
+    calls.length = 0;
+    resolve(
       bindings({
         APP_ENV: "production",
-        DATABASE_URL: "postgres://direct.example/db",
-        HYPERDRIVE: {
-          connectionString: "postgres://hyperdrive.example/db",
-        } as Hyperdrive,
+        HYPERDRIVE: { connectionString: "postgres://pool.example/db" } as Hyperdrive,
       }),
     );
-
-    expect(database).toBe(fakeDatabase);
-    expect(mockedCreatePostgresDatabase).toHaveBeenCalledWith({
-      databaseUrl: "postgres://hyperdrive.example/db",
-      connectionMode: "single-use",
-    });
+    expect(calls).toEqual([
+      { databaseUrl: "postgres://pool.example/db", connectionMode: "single-use" },
+    ]);
   });
-
-  it("requires Hyperdrive in production", () => {
+  it.each([undefined, "worker"] as const)(
+    "rejects production without Hyperdrive for %s runtime",
+    (runtime) => {
+      expect(() =>
+        resolve(
+          bindings({
+            APP_ENV: "production",
+            ...(runtime === undefined ? {} : { RUNTIME: runtime }),
+            DATABASE_URL: "postgres://direct.example/db",
+          }),
+        ),
+      ).toThrow("HYPERDRIVE is required in production");
+    },
+  );
+  it("permits and reuses pooled production Node connections", () => {
+    calls.length = 0;
+    const env = bindings({
+      APP_ENV: "production",
+      RUNTIME: "node",
+      DATABASE_URL: "postgres://node.example/db",
+    });
+    expect(resolve(env)).toBe(db);
+    expect(resolve(env)).toBe(db);
+    expect(calls).toEqual([{ databaseUrl: "postgres://node.example/db", connectionMode: "pool" }]);
+  });
+  it("rejects missing Node database URL", () => {
     expect(() =>
-      resolveDatabase(
-        bindings({
-          APP_ENV: "production",
-          DATABASE_URL: "postgres://direct.example/db",
-        }),
-      ),
-    ).toThrowError("HYPERDRIVE is required in production");
-  });
-
-  it("keeps DATABASE_URL fallback outside production", () => {
-    const database = resolveDatabase(
-      bindings({
-        APP_ENV: "test",
-        DATABASE_URL: "postgres://direct.example/db",
-      }),
-    );
-
-    expect(database).toBe(fakeDatabase);
-    expect(mockedCreatePostgresDatabase).toHaveBeenCalledWith({
-      databaseUrl: "postgres://direct.example/db",
-      connectionMode: "pool",
-    });
+      resolve(bindings({ APP_ENV: "production", RUNTIME: "node", DATABASE_URL: " " })),
+    ).toThrow("DATABASE_URL");
   });
 });

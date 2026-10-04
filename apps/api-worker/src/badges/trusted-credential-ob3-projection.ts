@@ -5,12 +5,14 @@ import { asJsonObject, asNonEmptyString } from "../utils/value-parsers";
 export interface TrustEdCredentialOb3Projection {
   achievement: JsonObject;
   subject: JsonObject;
+  credential: JsonObject;
 }
 
 export const emptyTrustEdOb3Projection = (): TrustEdCredentialOb3Projection => {
   return {
     achievement: {},
     subject: {},
+    credential: {},
   };
 };
 
@@ -138,7 +140,7 @@ export const projectTrustEdMetadataToOb3 = (
       type: ["Skill"],
       ...(skill.identifierUri === null ? {} : { id: skill.identifierUri }),
       ...(skill.name === null ? {} : { name: skill.name }),
-      ...(skill.source === null ? {} : { source: skill.source }),
+      ...(skill.source === null ? {} : { skillSource: skill.source }),
     };
   });
   const assessments = objectArray(metadata.assessments, (assessment) => {
@@ -224,10 +226,8 @@ export const projectTrustEdMetadataToOb3 = (
       ...(credits === null ? {} : { creditValue: credits }),
       ...(endorsements.length === 0 ? {} : { endorsement: endorsements }),
     },
-    subject: {
-      ...(evidence.length === 0 ? {} : { evidence }),
-      ...(result.length === 0 ? {} : { result }),
-    },
+    credential: evidence.length === 0 ? {} : { evidence },
+    subject: result.length === 0 ? {} : { result },
   };
 };
 
@@ -278,7 +278,7 @@ const trustEdSkillDetailsFromValue = (value: unknown): TrustEdSkillDetails | nul
   return {
     name,
     identifierUri,
-    source: asNonEmptyString(skill?.source),
+    source: asNonEmptyString(skill?.skillSource),
   };
 };
 
@@ -393,4 +393,28 @@ export const trustEdCredentialDetailsFromOb3Credential = (
       .map((entry) => trustEdEndorsementDetailsFromValue(entry))
       .filter((entry): entry is TrustEdEndorsementDetails => entry !== null),
   };
+};
+
+/** Determine context use from the fields actually emitted by this projection. */
+export const trustEdProjectionHasExtensionTerms = (
+  projection: TrustEdCredentialOb3Projection,
+): boolean => {
+  const extensionAchievementFields = [
+    "skill",
+    "issuerAuthority",
+    "assessment",
+    "rubric",
+    "duration",
+    "creditValue",
+    "endorsement",
+  ];
+  return (
+    extensionAchievementFields.some((field) => projection.achievement[field] !== undefined) ||
+    (Array.isArray(projection.achievement.alignment) &&
+      projection.achievement.alignment.some(
+        (entry) => asJsonObject(entry)?.frameworkUri !== undefined,
+      )) ||
+    (Array.isArray(projection.subject.result) &&
+      projection.subject.result.some((entry) => asJsonObject(entry)?.resultDate !== undefined))
+  );
 };

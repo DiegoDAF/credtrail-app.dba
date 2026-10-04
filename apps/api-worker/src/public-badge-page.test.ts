@@ -325,6 +325,14 @@ describe("GET /badges/:badgeIdentifier", () => {
         name: "Example University",
         url: "https://example.edu",
       },
+      evidence: [
+        {
+          id: "https://example.edu/evidence/123",
+          name: "Capstone Submission",
+          description: "Final capstone reviewed by instructor.",
+        },
+        "https://example.edu/evidence/gradebook/123",
+      ],
       credentialSubject: {
         id: "mailto:learner@example.edu",
         achievement: {
@@ -338,14 +346,6 @@ describe("GET /badges/:badgeIdentifier", () => {
             id: "https://example.edu/badges/typescript-foundations/image.png",
           },
         },
-        evidence: [
-          {
-            id: "https://example.edu/evidence/123",
-            name: "Capstone Submission",
-            description: "Final capstone reviewed by instructor.",
-          },
-          "https://example.edu/evidence/gradebook/123",
-        ],
       },
     };
 

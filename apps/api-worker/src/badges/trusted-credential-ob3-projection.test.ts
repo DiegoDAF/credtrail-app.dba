@@ -13,6 +13,7 @@ describe("projectTrustEdMetadataToOb3", () => {
   it("projects every readiness category into issued credential fields", () => {
     const projection = projectTrustEdMetadataToOb3(completeTrustEdCredentialMetadata());
     const credential = {
+      ...projection.credential,
       credentialSubject: {
         achievement: projection.achievement,
         ...projection.subject,
@@ -34,7 +35,6 @@ describe("projectTrustEdMetadataToOb3", () => {
     );
     expect(projection.subject).toEqual(
       expect.objectContaining({
-        evidence: expect.any(Array),
         result: expect.any(Array),
       }),
     );

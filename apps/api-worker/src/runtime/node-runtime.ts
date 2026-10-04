@@ -157,6 +157,7 @@ export const createNodeRuntimeBindings = (envSource: EnvSource = process.env): A
 
   if (appEnv === "production") {
     requireEnv(envSource, "BETTER_AUTH_SECRET");
+    requireEnv(envSource, "DATABASE_URL");
   }
 
   const s3Endpoint = optionalEnv(envSource, "S3_ENDPOINT");
@@ -176,6 +177,7 @@ export const createNodeRuntimeBindings = (envSource: EnvSource = process.env): A
 
   return {
     APP_ENV: appEnv,
+    RUNTIME: "node",
     PLATFORM_DOMAIN: platformDomain,
     PUBLIC_APP_ORIGIN: publicAppOrigin,
     BADGE_OBJECTS: badgeObjectsBinding,

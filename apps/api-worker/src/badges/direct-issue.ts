@@ -60,6 +60,7 @@ import {
 import {
   emptyTrustEdOb3Projection,
   projectTrustEdMetadataToOb3,
+  trustEdProjectionHasExtensionTerms,
   type TrustEdCredentialOb3Projection,
 } from "./trusted-credential-ob3-projection";
 
@@ -210,14 +211,6 @@ const projectTrustEdMetadataForIssuance = (
     : emptyTrustEdOb3Projection();
 };
 
-const trustEdProjectionHasExtensionTerms = (
-  projection: TrustEdCredentialOb3Projection,
-): boolean => {
-  return (
-    Object.keys(projection.achievement).length > 0 || Object.keys(projection.subject).length > 0
-  );
-};
-
 const criteriaForIssuedAchievement = (
   templateCriteriaUri: string | null,
   projectedCriteria: unknown,
@@ -255,6 +248,17 @@ export const createIssueBadgeForTenant = <
     issuedByUserId?: string,
     options?: DirectIssueBadgeOptions,
   ): Promise<DirectIssueBadgeResult> => {
+    if (
+      request.reservedAssertionId !== undefined &&
+      (!request.reservedAssertionId.startsWith(`${tenantId}:`) ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+          request.reservedAssertionId.slice(tenantId.length + 1),
+        ))
+    ) {
+      throw new input.HttpErrorResponseClass(400, {
+        error: "Invalid reserved assertion identity.",
+      });
+    }
     const db = input.resolveDatabase(context.env);
     const hasGovernedRuleSnapshot = request.achievementSource.kind === "rule_version";
     let requestedAchievement: BadgeAchievementSnapshot;
@@ -290,6 +294,14 @@ export const createIssueBadgeForTenant = <
     const existingAssertion = await findAssertionByIdempotencyKey(db, tenantId, idempotencyKey);
 
     if (existingAssertion !== null) {
+      if (
+        request.reservedAssertionId !== undefined &&
+        existingAssertion.id !== request.reservedAssertionId
+      ) {
+        throw new input.HttpErrorResponseClass(409, {
+          error: "Reserved assertion identity conflicts with the existing issuance.",
+        });
+      }
       const existingLifecycle = await resolveAssertionLifecycleState(
         db,
         tenantId,
@@ -411,7 +423,7 @@ export const createIssueBadgeForTenant = <
       identityValue: request.recipientIdentity,
       ...(recipientDisplayName === undefined ? {} : { displayName: recipientDisplayName }),
     });
-    const assertionId = createTenantScopedId(tenantId);
+    const assertionId = request.reservedAssertionId ?? createTenantScopedId(tenantId);
     const statusListIndex = await reserveAssertionStatusListIndex(db, tenantId);
     const statusListCredentialUrl = revocationStatusListUrlForTenant(credentialBaseUrl, tenantId);
     const learnerIdentities = await listLearnerIdentitiesByProfile(db, tenantId, learnerProfile.id);
@@ -490,6 +502,7 @@ export const createIssueBadgeForTenant = <
         validFrom: issuedAt,
         ...(validity.validUntil === undefined ? {} : { validUntil: validity.validUntil }),
         credentialStatus: credentialStatusForAssertion(statusListCredentialUrl, statusListIndex),
+        ...trustEdProjection.credential,
         credentialSubject: {
           id: learnerDidSubjectId,
           type: ["AchievementSubject"],

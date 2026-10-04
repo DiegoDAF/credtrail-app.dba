@@ -8,6 +8,8 @@ import type { ObservabilityContextVariables } from "./observability";
 
 export interface AppBindings {
   APP_ENV: string;
+  RUNTIME?: "node" | "worker";
+  REQUEST_CLIENT_IP?: string;
   DATABASE_URL?: string;
   HYPERDRIVE?: Hyperdrive;
   BADGE_OBJECTS: ImmutableCredentialStore;

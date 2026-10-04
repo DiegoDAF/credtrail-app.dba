@@ -187,7 +187,7 @@ describe("credential signing", () => {
         credentialSchema: [
           {
             id: "https://credtrail.example/schemas/open-badge-credential.json",
-            type: "1EdTechJsonSchemaValidator2019",
+            type: "https://purl.imsglobal.org/spec/vc/ob/vocab.html#1EdTechJsonSchemaValidator2019",
           },
         ],
       },

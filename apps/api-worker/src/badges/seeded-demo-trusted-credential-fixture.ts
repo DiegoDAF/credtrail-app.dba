@@ -123,6 +123,7 @@ const createCredential = (): JsonObject => {
       url: "https://credential.example.edu",
     },
     validFrom: ISSUED_AT,
+    ...trustEdProjection.credential,
     credentialSubject: {
       id: `did:web:credential.example.edu:learners:${LEARNER_PROFILE_ID}`,
       type: ["AchievementSubject"],

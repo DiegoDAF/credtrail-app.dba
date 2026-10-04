@@ -174,6 +174,7 @@ const processQueuedJob = async <TBindings, TContext extends { env: TBindings }>(
       };
       const issueRequest: DirectIssueBadgeRequest = {
         ...requestBase,
+        reservedAssertionId: job.payload.assertionId,
         achievementSource: job.payload.achievementSource,
       };
       await dependencies.issueBadgeForTenant(

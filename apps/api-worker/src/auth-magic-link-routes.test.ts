@@ -1139,7 +1139,7 @@ describe("magic-link auth routes", () => {
       expect.objectContaining({
         secretKey: "turnstile-secret-key",
         token: "valid-turnstile-token",
-        remoteIp: "203.0.113.10",
+        remoteIp: undefined,
       }),
     ]);
     expect(mockedRecordAuthMagicLinkRateLimitAttempt).toHaveBeenCalledTimes(4);

@@ -19,6 +19,7 @@ export type DirectIssueBadgeRequestBase = Pick<
 
 export type DirectIssueBadgeRequest = DirectIssueBadgeRequestBase & {
   readonly achievementSource: IssuanceAchievementSource;
+  readonly reservedAssertionId?: string;
 };
 
 const normalizeRecipientIdentifierValue = (

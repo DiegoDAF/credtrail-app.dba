@@ -8,11 +8,7 @@ import {
 } from "./public-resource-network";
 
 interface CreateJsonObjectLoaderInput<BindingsType> {
-  appRequest: (
-    pathWithQuery: string,
-    init: RequestInit,
-    bindings: BindingsType,
-  ) => Promise<Response>;
+  appRequest: (resourceUrl: string, init: RequestInit, bindings: BindingsType) => Promise<Response>;
   asJsonObject: (value: unknown) => JsonObject | null;
   publicAppOrigin: (bindings: BindingsType) => string;
   publicResourceNetwork: (bindings: BindingsType) => PublicResourceNetwork;
@@ -74,9 +70,8 @@ export const createLoadJsonObjectFromUrl = <BindingsType>(
       const publicOrigin = canonicalAppOrigin(input.publicAppOrigin(context.env));
 
       if (parsedResourceUrl.origin === publicOrigin) {
-        const pathWithQuery = `${parsedResourceUrl.pathname}${parsedResourceUrl.search}`;
         response = await input.appRequest(
-          pathWithQuery,
+          parsedResourceUrl.toString(),
           {
             method: "GET",
             headers: withCredTrailUserAgent({

@@ -128,8 +128,7 @@ const evidenceDetailsFromValue = (value: unknown): EvidenceDetails | null => {
 };
 
 export const evidenceDetailsFromCredential = (credential: JsonObject): EvidenceDetails[] => {
-  const credentialSubject = asJsonObject(credential.credentialSubject);
-  const evidence = credentialSubject?.evidence;
+  const evidence = credential.evidence;
 
   if (Array.isArray(evidence)) {
     const mappedEvidence = evidence.map((entry) => evidenceDetailsFromValue(entry));

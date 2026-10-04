@@ -173,8 +173,8 @@ const { authenticateOAuthClient, issueOAuthAccessAndRefreshTokens } =
   });
 
 const loadJsonObjectFromUrl = createLoadJsonObjectFromUrl<AppBindings>({
-  appRequest: async (pathWithQuery, init, bindings) => {
-    return app.request(pathWithQuery, init, bindings);
+  appRequest: async (resourceUrl, init, bindings) => {
+    return app.request(resourceUrl, init, bindings);
   },
   asJsonObject,
   publicAppOrigin: (bindings) => bindings.PUBLIC_APP_ORIGIN,

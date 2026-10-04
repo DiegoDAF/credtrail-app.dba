@@ -41,6 +41,7 @@ RUN corepack enable
 WORKDIR /app
 
 COPY --from=deploy /prod ./
+COPY --from=deploy /app/apps/api-worker/public/assets/ui ./public/assets/ui
 
 EXPOSE 8787
 

@@ -605,6 +605,14 @@ describe("GET /credentials/v1/:credentialId", () => {
         url: "https://credtrail.test",
       },
       validFrom: "2026-02-10T22:00:00.000Z",
+      evidence: [
+        {
+          type: ["Evidence"],
+          id: "https://evidence.example.edu/learners/123/capstone",
+          name: "Capstone analysis portfolio",
+          description: "Portfolio evidence reviewed by program faculty.",
+        },
+      ],
       credentialSubject: {
         id: "mailto:learner@example.edu",
         type: ["AchievementSubject"],
@@ -637,7 +645,7 @@ describe("GET /credentials/v1/:credentialId", () => {
               type: ["Skill"],
               id: "https://skills.example.edu/applied-data",
               name: "Applied data analysis",
-              source: "Example Skills Framework",
+              skillSource: "Example Skills Framework",
             },
           ],
           issuerAuthority: {
@@ -682,14 +690,6 @@ describe("GET /credentials/v1/:credentialId", () => {
             type: ["Result"],
             value: "Pass",
             resultDate: "2026-05-18",
-          },
-        ],
-        evidence: [
-          {
-            type: ["Evidence"],
-            id: "https://evidence.example.edu/learners/123/capstone",
-            name: "Capstone analysis portfolio",
-            description: "Portfolio evidence reviewed by program faculty.",
           },
         ],
       },
@@ -755,7 +755,7 @@ describe("GET /credentials/v1/:credentialId", () => {
             {
               type: ["Skill"],
               name: "Applied data analysis",
-              source: "Example Skills Framework",
+              skillSource: "Example Skills Framework",
             },
           ],
         },

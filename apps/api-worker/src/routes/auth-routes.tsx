@@ -134,19 +134,7 @@ const getFormValue = (formData: FormData, name: string): string => {
 };
 
 const clientIpFromRequest = (c: AppContext): string => {
-  const cloudflareIp = c.req.header("cf-connecting-ip")?.trim();
-
-  if (cloudflareIp !== undefined && cloudflareIp.length > 0) {
-    return cloudflareIp;
-  }
-
-  const forwardedFor = c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
-
-  if (forwardedFor !== undefined && forwardedFor.length > 0) {
-    return forwardedFor;
-  }
-
-  return "unknown";
+  return c.env.REQUEST_CLIENT_IP ?? "unknown";
 };
 
 const magicLinkRateLimitDimensions = async (input: {

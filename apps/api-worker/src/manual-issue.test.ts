@@ -969,7 +969,7 @@ describe("POST /v1/tenants/:tenantId/assertions/manual-issue", () => {
         targetFramework: "Example CASE Framework",
       }),
     ]);
-    expect(credentialSubject?.evidence).toEqual([
+    expect(body.credential.evidence).toEqual([
       expect.objectContaining({
         id: "https://evidence.example.edu/learners/123/capstone",
         name: "Capstone analysis portfolio",
@@ -985,7 +985,7 @@ describe("POST /v1/tenants/:tenantId/assertions/manual-issue", () => {
       expect.objectContaining({
         id: "https://skills.example.edu/skills/applied-data-analysis",
         name: "Applied data analysis",
-        source: "Example Skills Framework",
+        skillSource: "Example Skills Framework",
       }),
     ]);
     expect(achievement?.issuerAuthority).toEqual(
@@ -1150,7 +1150,7 @@ describe("POST /v1/tenants/:tenantId/assertions/manual-issue", () => {
     expect(response.status).toBe(201);
     expect(achievement?.skill).toBeUndefined();
     expect(achievement?.issuerAuthority).toBeUndefined();
-    expect(credentialSubject?.evidence).toBeUndefined();
+    expect(body.credential.evidence).toBeUndefined();
     expect(
       warningPayloads.some((payload) => {
         return (

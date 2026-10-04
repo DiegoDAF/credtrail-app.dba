@@ -143,6 +143,12 @@ export const registerCommonMiddleware = (input: RegisterCommonMiddlewareInput): 
 
     if (
       c.env.APP_ENV === "production" &&
+      !(
+        c.env.RUNTIME === "node" &&
+        ["GET", "HEAD"].includes(c.req.method) &&
+        ["/healthz", "/healthz/dependencies"].includes(requestUrl.pathname) &&
+        ["127.0.0.1", "[::1]", "localhost"].includes(requestUrl.hostname)
+      ) &&
       !isAllowedProductionRequestOrigin({
         requestUrl,
         canonicalOrigin,

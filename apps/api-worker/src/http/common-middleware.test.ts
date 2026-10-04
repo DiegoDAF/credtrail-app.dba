@@ -200,3 +200,21 @@ describe("registerCommonMiddleware", () => {
     });
   });
 });
+
+it("allows only loopback Node GET/HEAD health probes past the canonical check", async () => {
+  const app = createMiddlewareApp();
+  app.get("/healthz/dependencies", (c) => c.json({ status: "ok" }));
+  const env = { ...fakeEnv, APP_ENV: "production", RUNTIME: "node" as const };
+  for (const path of ["/healthz", "/healthz/dependencies"]) {
+    for (const method of ["GET", "HEAD"])
+      expect((await app.request(`http://127.0.0.1:8787${path}`, { method }, env)).status).toBe(200);
+  }
+  expect((await app.request("http://127.0.0.1:8787/ok", {}, env)).status).toBe(308);
+  expect((await app.request("http://untrusted.example/healthz", {}, env)).status).toBe(308);
+  expect((await app.request("http://127.0.0.1:8787/healthz", { method: "POST" }, env)).status).toBe(
+    308,
+  );
+  expect(
+    (await app.request("http://127.0.0.1:8787/healthz", {}, { ...env, RUNTIME: "worker" })).status,
+  ).toBe(308);
+});

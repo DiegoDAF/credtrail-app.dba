@@ -645,3 +645,8 @@ export {
   type ObservabilityFields,
   type ObservabilityLevel,
 } from "./observability";
+
+export {
+  trustedCredentialContext,
+  TRUSTED_CREDENTIAL_CONTEXT_URL,
+} from "./trusted-credential-context";

@@ -56,6 +56,7 @@ describe("createNodeRuntimeBindings", () => {
     });
 
     expect(bindings.APP_ENV).toBe("production");
+    expect(bindings.RUNTIME).toBe("node");
     expect(bindings.PLATFORM_DOMAIN).toBe("badges.example.edu");
     expect(bindings.PUBLIC_APP_ORIGIN).toBe("https://badges.example.edu");
     expect(bindings.DATABASE_URL).toBe("postgres://example/db");
@@ -131,4 +132,15 @@ describe("createNodeRuntimeBindings", () => {
       }),
     ).toThrowError("PUBLIC_APP_ORIGIN must be an absolute HTTP or HTTPS origin");
   });
+});
+
+it("requires DATABASE_URL when the production Node factory starts", () => {
+  expect(() =>
+    createNodeRuntimeBindings({
+      APP_ENV: "production",
+      PLATFORM_DOMAIN: "badges.example.edu",
+      PUBLIC_APP_ORIGIN: "https://badges.example.edu",
+      BETTER_AUTH_SECRET: "test-secret",
+    }),
+  ).toThrow("DATABASE_URL is required");
 });

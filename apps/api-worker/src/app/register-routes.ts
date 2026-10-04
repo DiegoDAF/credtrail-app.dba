@@ -1,6 +1,7 @@
 import type { Hono } from "hono";
 import type { AppEnv } from "./types";
 import type { AppDeps } from "./app-deps";
+import { registerJsonLdContextRoutes } from "../routes/json-ld-context-routes";
 import { registerCommonMiddleware } from "../http/common-middleware";
 import { registerAppPageRenderer } from "../ui/render-page";
 import { registerAssertionRoutes } from "../routes/assertion-routes";
@@ -46,6 +47,7 @@ export const registerRoutes = (input: RegisterRoutesInput): void => {
   });
 
   registerAppPageRenderer(input.app);
+  registerJsonLdContextRoutes(input.app);
 
   registerGoogleAuthRoutes(routeInput);
   registerDesignSystemRoutes(routeInput);
