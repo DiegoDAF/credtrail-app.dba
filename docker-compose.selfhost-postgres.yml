@@ -1,0 +1,24 @@
+# Optional local Postgres. Use together with docker-compose.selfhost.yml.
+# Set DATABASE_URL=postgres://credtrail:credtrail@postgres:5432/credtrail in .env.selfhost.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: credtrail
+      POSTGRES_PASSWORD: credtrail
+      POSTGRES_DB: credtrail
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U credtrail -d credtrail"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:

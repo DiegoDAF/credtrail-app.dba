@@ -46,20 +46,69 @@ Worker notes:
 - Production Node API and worker use pooled `DATABASE_URL` connections. The Cloudflare Worker
   runtime continues to require Hyperdrive in production. Missing Node `DATABASE_URL` fails startup.
 
-## Local Validation with Docker Compose
+## Configure Docker Compose
 
-The Compose stack starts Postgres, runs database migrations, and starts the API and queue worker.
-Credentials and artwork are stored in your S3 or R2 bucket. Create a private bucket before starting
-the stack; Compose does not create or manage it.
+The default Compose stack runs database migrations and starts the API and queue worker. It connects
+to the Postgres database you specify in `DATABASE_URL`, such as AWS RDS or another managed service.
+An optional Compose file adds local Postgres. Credentials and artwork are stored in your S3 or R2
+bucket. Create a private bucket before starting the stack; Compose does not create or manage it.
 
-From the app repository, copy the storage settings template:
+From the app repository, copy the settings template:
 
 ```bash
 cp .env.selfhost.example .env.selfhost
 ```
 
-Edit `.env.selfhost` on your machine. This file is gitignored. Enter your bucket settings and
-credentials there; keep them out of commits, issue reports, and chat messages.
+Edit `.env.selfhost` on your machine. This file is gitignored and excluded from Docker builds.
+Enter your database URL, bucket settings, and credentials there; keep them out of commits, issue
+reports, and chat messages.
+
+### Connect to managed Postgres
+
+Set `DATABASE_URL` to your provider's connection URL. Use the same database for migrations, the API,
+and the worker; Compose passes this value to all three. The database must exist, and the database
+user must have permission to apply the schema migrations. URL-encode special characters in the
+username and password.
+
+Use certificate-verified TLS for managed databases. A provider with a publicly trusted certificate
+can use a URL ending in `?sslmode=verify-full`.
+
+For AWS RDS, create a `.local` directory and download the appropriate
+[RDS CA certificate bundle](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html)
+to `.local/rds-ca.pem`. Use the RDS endpoint hostname in the URL so certificate verification can
+check its identity. Add these query parameters to your URL:
+
+```text
+?sslmode=verify-full&sslrootcert=/run/credtrail/database-ca.pem
+```
+
+The certificate path refers to a file inside each container. Create `.local/compose.database-tls.yml`
+with this content to mount the downloaded certificate read-only:
+
+```yaml
+x-database-tls: &database_tls
+  volumes:
+    - type: bind
+      source: ./.local/rds-ca.pem
+      target: /run/credtrail/database-ca.pem
+      read_only: true
+      bind:
+        create_host_path: false
+
+services:
+  migrate:
+    <<: *database_tls
+  app:
+    <<: *database_tls
+  worker:
+    <<: *database_tls
+```
+
+Allow the Docker host to reach the database through your network and database security rules.
+For RDS, run the host in a network that can reach the instance and allow its connections in the RDS
+security group. See [RDS PostgreSQL TLS connections](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL.Concepts.General.SSL.html).
+
+### Configure object storage
 
 For AWS S3, use the bucket's region and leave `S3_ENDPOINT` empty:
 
@@ -91,28 +140,65 @@ Create an R2 API token with **Object Read & Write** access restricted to this bu
 Access Key ID and Secret Access Key. See [R2 authentication](https://developers.cloudflare.com/r2/api/tokens/)
 and the [R2 SDK configuration](https://developers.cloudflare.com/r2/examples/aws/aws-sdk-js-v3/).
 
-Start the stack with your local settings:
+### Start with managed Postgres
+
+Start the default stack with your local settings:
 
 ```bash
 docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml up --build --wait
 ```
 
-The API becomes healthy when the database and bucket are reachable. Missing required bucket
-settings stop Compose with a message naming the value to supply.
+If you created the RDS certificate mount file, include it in the command:
+
+```bash
+docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml \
+  -f .local/compose.database-tls.yml up --build --wait
+```
+
+Migrations must finish successfully before the API and worker start. The API becomes healthy when
+the database and bucket are reachable. Missing database or bucket settings stop Compose with a
+message naming the value to supply.
 
 No `JOB_PROCESSOR_TOKEN` is needed for this stack. The API and queue worker use the packaged
 Node bundles, and the worker processes jobs directly against Postgres.
 
-Postgres records use the named volume `postgres-data`. Docker Compose prefixes its name with the
-project name. Keep the same project name when restarting or upgrading so the stack reuses its data.
-To stop the stack and preserve the database, run:
+To stop the default stack, run the same Compose command with `down` instead of `up --build --wait`.
+Compose does not delete your managed database or external bucket, including when you use
+`down --volumes`. Use your providers' database and bucket backup procedures.
 
-```bash
-docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml down
+### Optional: start with local Postgres
+
+For local validation, set this URL in `.env.selfhost`:
+
+```dotenv
+DATABASE_URL=postgres://credtrail:credtrail@postgres:5432/credtrail
 ```
 
-The next `up` reuses the database volume. `down --volumes` deletes the local database; it does not
-delete objects from your external bucket. Keep regular database and bucket backups.
+Include the local database file when starting the stack:
+
+```bash
+docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml \
+  -f docker-compose.selfhost-postgres.yml up --build --wait
+```
+
+This file adds Postgres with a health check and makes migrations wait for it. Postgres runs on the
+internal Compose network; it does not publish a database port on your host. The API and worker use
+the same `DATABASE_URL` as migrations.
+
+Postgres records use the named volume `postgres-data`. Docker Compose prefixes its name with the
+project name. Keep the same project name and include the local database file when restarting or
+upgrading so the stack reuses its data. To stop this stack and preserve the database, run:
+
+```bash
+docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml \
+  -f docker-compose.selfhost-postgres.yml down
+```
+
+The next `up` reuses the database volume. For this local setup, `down --volumes` deletes the local
+database; it does not delete objects from your external bucket. Keep regular database and bucket
+backups.
+
+### Configure production identity and email
 
 The Compose stack leaves outbound email disabled. Configure email delivery before offering
 production email sign-in or invitations.
@@ -215,13 +301,15 @@ Its browser uses a nonexistent recipient so it sends no email. A Postgres integr
 records actual production magic-link delivery in memory and verifies the confirmation/consumption
 flow and secure cookie. No real mailbox is contacted by either check.
 
-CI also verifies the shipped Compose file with `scripts/selfhost-compose-smoke.mjs`. This check
-uses the built image in an isolated project without published host ports. A disposable S3 emulator
-runs outside the Compose stack to represent an external bucket. The check uses only disposable
-credentials and does not read `.env.selfhost` or contact your cloud storage. It verifies API
-readiness, queue processing without a queue token, database retention, and access to the same
-external object through a normal `down`/`up` cycle. It removes its own test resources when finished.
-This check does not validate a live AWS or R2 account. Run it locally after building:
+CI also verifies both shipped Compose configurations with `scripts/selfhost-compose-smoke.mjs`.
+The check uses the built image in isolated projects without published host ports. It tests the
+default stack against an external disposable Postgres server with certificate-verified TLS, then
+tests the optional local Postgres file. A disposable S3 emulator represents an external bucket.
+The check uses only disposable credentials and does not read `.env.selfhost` or contact your cloud
+services. It verifies migrations, API readiness, queue processing without a queue token, certificate
+hostname rejection, database retention, and access to the same object through a normal `down`/`up`
+cycle. It removes its own test resources when finished. This check does not validate a live RDS,
+AWS S3, or R2 account. Run it locally after building:
 
 ```bash
 node scripts/selfhost-compose-smoke.mjs --image credtrail-selfhost:test

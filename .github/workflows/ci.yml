@@ -79,7 +79,7 @@ jobs:
       - name: Verify production self-host contracts through TLS
         run: node scripts/selfhost-production-smoke.mjs --image credtrail-ci:${{ github.sha }}
 
-      - name: Verify reference Compose startup and persistence
+      - name: Verify Compose with external and local Postgres
         run: node scripts/selfhost-compose-smoke.mjs --image credtrail-ci:${{ github.sha }}
 
   e2e:

@@ -151,9 +151,17 @@ Wrangler R2 object for `/badges/trusted-demo-credential`. See
 
 ## Self-host Docker
 
-- Build image: `docker build -t credtrail-app:local .`
-- Run reference stack: `docker compose -f docker-compose.selfhost.yml up --build`
-- Runbook: `docs/SELF_HOST_DOCKER_RUNBOOK.md`
+Copy `.env.selfhost.example` to `.env.selfhost`, then set your Postgres `DATABASE_URL` and
+S3 or R2 bucket credentials. The default stack uses an existing database, such as AWS RDS:
+
+```bash
+docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml up --build --wait
+```
+
+For local Postgres, set `DATABASE_URL=postgres://credtrail:credtrail@postgres:5432/credtrail` and add
+`-f docker-compose.selfhost-postgres.yml` before `up`. See the
+[Docker runbook](docs/SELF_HOST_DOCKER_RUNBOOK.md) for certificate mounts, production settings,
+backups, and validation.
 
 ## Observability
 
