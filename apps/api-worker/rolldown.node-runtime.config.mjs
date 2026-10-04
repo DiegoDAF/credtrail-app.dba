@@ -97,6 +97,7 @@ export default {
   input: {
     "node-server-runtime": "src/node-server.ts",
     "node-worker-runtime": "src/node-worker.ts",
+    "node-email-check-runtime": "src/node-email-check.ts",
   },
   external: isExternalImport,
   platform: "node",

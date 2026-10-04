@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { setTimeout } from "node:timers/promises";
 import { chromium, request as playwrightRequest } from "@playwright/test";
+import { prepareSmtpSmoke } from "./fixtures/selfhost-smtp-smoke.mjs";
 import * as Ed25519Multikey from "@digitalbazaar/ed25519-multikey";
 
 const imageIndex = process.argv.indexOf("--image");
@@ -28,6 +29,7 @@ const containers = [];
 const directory = await mkdtemp(join(tmpdir(), "credtrail-production-smoke-"));
 let browser;
 let http;
+let smtp;
 const availablePort = async () => {
   const server = createServer();
   await new Promise((resolve, reject) => {
@@ -159,8 +161,9 @@ try {
     "-subj",
     "/CN=localhost",
     "-addext",
-    "subjectAltName=DNS:localhost",
+    "subjectAltName=DNS:localhost,DNS:smtp",
   ]);
+  smtp = await prepareSmtpSmoke({ directory, network, image, docker, poll });
   const values = {
     APP_ENV: "production",
     PLATFORM_DOMAIN: "localhost",
@@ -176,12 +179,15 @@ try {
     AWS_SECRET_ACCESS_KEY: "disposable",
     JOB_PROCESSOR_TOKEN: processorToken,
     TRUSTED_PROXY_CIDRS: `${proxyAddress}/32`,
-    ISSUANCE_EMAIL_NOTIFICATIONS_ENABLED: "false",
+    ...smtp.env,
     TENANT_SIGNING_REGISTRY_JSON: JSON.stringify({
       [did]: { tenantId, keyId: "key-1", publicJwk, privateJwk },
     }),
   };
-  const envArgs = Object.entries(values).flatMap(([name, value]) => ["-e", `${name}=${value}`]);
+  const envArgs = [
+    ...smtp.mount,
+    ...Object.entries(values).flatMap(([name, value]) => ["-e", `${name}=${value}`]),
+  ];
   await docker(
     "run",
     "--rm",
@@ -323,7 +329,7 @@ try {
     data: { email: "missing-cookie@example.edu" },
   });
   assert.equal(validCsrf.status(), 202);
-  // Unknown accounts never send mail; a separate auth integration test records delivery in memory.
+  // Unknown accounts never send mail; SMTP delivery is checked for a seeded account below.
   for (let attempt = 1; attempt <= 3; attempt++) {
     const result = await http.post(`${origin}/v1/auth/magic-link/request`, {
       headers: {
@@ -350,6 +356,12 @@ INSERT INTO tenant_org_units (id,tenant_id,unit_type,slug,display_name,parent_or
 INSERT INTO badge_templates (id,tenant_id,slug,title,image_uri,created_by_user_id,owner_org_unit_id,governance_metadata_json) VALUES ('${badgeTemplateId}','${tenantId}','smoke','Smoke achievement','${origin}/badges/assets/${tenantId}/${badgeTemplateId}/asset_test','${userId}','${tenantId}:org:institution','{"stability":"institution_registry"}');
 INSERT INTO tenant_api_keys (id,tenant_id,label,key_prefix,key_hash,scopes_json,created_by_user_id,created_at,updated_at) VALUES ('smoke_key','${tenantId}','Smoke API key','${apiKey.slice(0, 13)}','${createHash("sha256").update(apiKey).digest("hex")}','["queue.issue","queue.revoke"]','${userId}',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);`,
   );
+  const authHttp = await playwrightRequest.newContext({ ignoreHTTPSErrors: true });
+  try {
+    await smtp.verifyAuth({ http: authHttp, origin, sql, tenantId });
+  } finally {
+    await authHttp.dispose();
+  }
   const imageObject = JSON.stringify({
     version: 1,
     mimeType: "image/png",
@@ -476,8 +488,9 @@ CURRENT_TIMESTAMP::text,'pending',CURRENT_TIMESTAMP::text,CURRENT_TIMESTAMP::tex
   assert.equal(inactive.verification.status, "revoked");
   assert.equal(inactive.verification.checks.credentialStatus.revoked, true);
   assert.equal((await docker("exec", `${prefix}-app`, "node", "--version")).split(".")[0], "v24");
+  await smtp.verifyIssuance({ http, origin, sql, apiKey, payload, assertionId: row.id });
   console.log(
-    "Production Node 24 API/worker, Postgres, S3 storage contracts, discovery, TLS POST/CSRF, packaged login assets/HTTP policies/request logs/browser script, forged-header IP limits, namespace, lifecycle queue job, issuance identity/replay, independent signature verification and active/revoked status checks passed.",
+    "SMTP packaged no-send check/test, real sign-in, issuance acceptance/rejection audits, and production Node 24 API/worker, Postgres, S3 storage contracts, discovery, TLS POST/CSRF, packaged login assets/HTTP policies/request logs/browser script, forged-header IP limits, namespace, lifecycle queue job, issuance identity/replay, independent signature verification and active/revoked status checks passed.",
   );
 } finally {
   await Promise.allSettled([browser?.close(), http?.dispose()]);
@@ -485,5 +498,6 @@ CURRENT_TIMESTAMP::text,'pending',CURRENT_TIMESTAMP::text,CURRENT_TIMESTAMP::tex
     await docker("rm", "-f", container).catch(() => undefined);
   await docker("network", "rm", network).catch(() => undefined);
   await docker("image", "rm", `${prefix}-s3-image`).catch(() => undefined);
+  await smtp?.close();
   await rm(directory, { recursive: true, force: true });
 }

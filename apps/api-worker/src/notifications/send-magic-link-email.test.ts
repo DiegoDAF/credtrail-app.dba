@@ -41,6 +41,7 @@ describe("sendMagicLinkEmailNotification", () => {
           "https://credtrail.test/auth/magic-link/verify?token=test-token",
         ),
         headers: {
+          "X-CredTrail-Email-Kind": "magic_link",
           "X-CredTrail-Email-Category": "Auth Magic Link",
         },
       }),

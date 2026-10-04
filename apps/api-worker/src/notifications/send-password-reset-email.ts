@@ -24,6 +24,7 @@ export const sendPasswordResetEmailNotification = async (
   ].join("\n");
 
   await sendTransactionalEmail({
+    kind: "password_reset",
     emailBinding: input.emailBinding,
     fromEmail: input.fromEmail,
     fromName: input.fromName,

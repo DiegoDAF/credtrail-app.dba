@@ -31,6 +31,7 @@ export const sendIssuanceEmailNotification = async (
   ].join("\n");
 
   await sendTransactionalEmail({
+    kind: "issuance",
     emailBinding: input.emailBinding,
     fromEmail: input.fromEmail,
     fromName: input.fromName,

@@ -4,10 +4,22 @@ x-selfhost-env: &selfhost_env
   PUBLIC_APP_ORIGIN: http://localhost:8787
   BETTER_AUTH_SECRET: replace-with-at-least-32-random-bytes
   BETTER_AUTH_TRUSTED_ORIGINS: http://localhost:8787
-  # Local validation leaves outbound email disabled. For real deployments, uncomment and configure:
-  # EMAIL_PROVIDER: ses
-  # AWS_SES_REGION: us-east-1
-  # TRANSACTIONAL_EMAIL_FROM_ADDRESS: no-reply@example.edu
+  # Email is optional; SMTP credentials are independent of bucket credentials.
+  EMAIL_PROVIDER: ${EMAIL_PROVIDER:-none}
+  TRANSACTIONAL_EMAIL_FROM_ADDRESS: ${TRANSACTIONAL_EMAIL_FROM_ADDRESS:-}
+  TRANSACTIONAL_EMAIL_FROM_NAME: ${TRANSACTIONAL_EMAIL_FROM_NAME:-CredTrail}
+  TRANSACTIONAL_EMAIL_REPLY_TO: ${TRANSACTIONAL_EMAIL_REPLY_TO:-}
+  ISSUANCE_EMAIL_BCC: ${ISSUANCE_EMAIL_BCC:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-}
+  SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+  SMTP_AUTH: ${SMTP_AUTH:-login}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_PASSWORD_FILE: ${SMTP_PASSWORD_FILE:-}
+  SMTP_TLS_CA_FILE: ${SMTP_TLS_CA_FILE:-}
+  AWS_SES_REGION: ${AWS_SES_REGION:-}
+  AWS_SES_CONFIGURATION_SET: ${AWS_SES_CONFIGURATION_SET:-}
   DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to your Postgres connection URL}
   STORAGE_BACKEND: s3
   # Use an existing AWS S3 or Cloudflare R2 bucket. See .env.selfhost.example.

@@ -1,7 +1,17 @@
 const DEFAULT_FROM_EMAIL = "no-reply@credtrail.org";
 const DEFAULT_FROM_NAME = "CredTrail";
 
+/** Explicit application message kinds used by the operator copy policy. */
+export type TransactionalEmailKind =
+  | "magic_link"
+  | "password_reset"
+  | "member_invite"
+  | "issuance"
+  | "rule_approval"
+  | "rule_lifecycle";
+
 export interface SendTransactionalEmailInput {
+  kind: TransactionalEmailKind;
   emailBinding?: SendEmail | undefined;
   fromEmail?: string | undefined;
   fromName?: string | undefined;
@@ -26,6 +36,7 @@ export const sendTransactionalEmail = async (input: SendTransactionalEmailInput)
     text: input.text,
     headers: {
       "X-CredTrail-Email-Category": input.category,
+      "X-CredTrail-Email-Kind": input.kind,
     },
   });
 };

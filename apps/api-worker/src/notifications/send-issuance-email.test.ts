@@ -45,6 +45,7 @@ describe("sendIssuanceEmailNotification", () => {
           "https://credtrail.test/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22",
         ),
         headers: {
+          "X-CredTrail-Email-Kind": "issuance",
           "X-CredTrail-Email-Category": "Issuance Notification",
         },
       }),

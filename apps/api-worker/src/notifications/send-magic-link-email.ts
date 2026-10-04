@@ -76,6 +76,7 @@ export const sendMagicLinkEmailNotification = async (
   ].join("\n");
 
   await sendTransactionalEmail({
+    kind: "magic_link",
     emailBinding: input.emailBinding,
     fromEmail: input.fromEmail,
     fromName: input.fromName,

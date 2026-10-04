@@ -11,6 +11,8 @@ overrides:
   zod: 4.5.4
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
+  # Selected SMTP release includes current security fixes; verify TLS/protocol behavior before release.
+  - "nodemailer@10.0.14"
   # This exact release was explicitly approved for adoption before the normal quarantine expires.
   - "zod@4.5.4"
   # CredTrail is a co-author on @longsightgroup/lti-tool, so we can safely consume coordinated releases immediately.

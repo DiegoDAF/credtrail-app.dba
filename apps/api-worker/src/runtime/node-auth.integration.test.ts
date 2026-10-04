@@ -10,11 +10,15 @@ import {
 } from "../../../../packages/db/src/postgres-test-support";
 import { createNodeRequestAdapter } from "./node-request-adapter";
 import { sha256Hex } from "../utils/crypto";
+import { createSmtpTestServer, type SmtpTestServer } from "../test-support/smtp-test-server";
+import { createNodeEmail } from "./node-email";
+const relays: SmtpTestServer[] = [];
 const buckets: string[] = [];
 const tenantIds: string[] = [];
 const userIds: string[] = [];
 const betterAuthUserIds: string[] = [];
 afterEach(async () => {
+  for (const relay of relays.splice(0)) await relay.close();
   if (tenantIds.length)
     await cleanupTestResources(createTestPostgresDatabase(), {
       tenantIds,
@@ -86,7 +90,7 @@ describeDbIntegration("Node trusted auth identity", () => {
     expect((await request(peers[0] ?? "", 4)).status).toBe(428);
     expect((await request(peers[1] ?? "", 5)).status).toBe(202);
   });
-  it("delivers a real production magic link to a recording adapter and preserves secure cookies", async () => {
+  it("delivers a real production magic link through TLS SMTP without BCC and preserves secure cookies", async () => {
     const fixture = await createBadgeRuleIntegrationFixture();
     tenantIds.push(fixture.tenantId);
     userIds.push(fixture.userId);
@@ -103,7 +107,10 @@ describeDbIntegration("Node trusted auth identity", () => {
       `tenant-email:${fixture.tenantId}:${user.email}`,
     ])
       buckets.push(await sha256Hex(`magic-link:${dimension}`));
-    const messages: string[] = [];
+    const relay = await createSmtpTestServer();
+    relays.push(relay);
+    const binding = createNodeEmail(relay.env).binding;
+    if (binding === undefined) throw new Error("SMTP fixture binding missing");
     const env: AppBindings = {
       APP_ENV: "production",
       RUNTIME: "node",
@@ -117,12 +124,9 @@ describeDbIntegration("Node trusted auth identity", () => {
         put: async () => null,
         delete: async () => undefined,
       },
-      EMAIL: {
-        send: async (message) => {
-          if ("text" in message && typeof message.text === "string") messages.push(message.text);
-          return { messageId: "recorded-only" };
-        },
-      },
+      EMAIL: binding,
+      TRANSACTIONAL_EMAIL_FROM_ADDRESS: "badges@example.edu",
+      TRANSACTIONAL_EMAIL_FROM_NAME: "University Credentials",
     };
     const result = createNodeRequestAdapter("10.0.0.0/8")(
       new Request("http://internal:8787/v1/auth/magic-link/request", {
@@ -143,13 +147,15 @@ describeDbIntegration("Node trusted auth identity", () => {
     if (result.status !== "ok") throw new Error("Trusted proxy failed");
     const response = await app.fetch(result.request, result.bindings);
     expect(response.status).toBe(202);
-    expect(messages).toHaveLength(1);
+    expect(relay.messages).toHaveLength(1);
+    expect(relay.messages[0]?.recipients).toEqual([user.email]);
+    expect(relay.messages[0]?.secure).toBe(true);
     const authUser = await fixture.db
       .prepare("SELECT id FROM auth.user WHERE email = ?")
       .bind(user.email)
       .first<{ id: string }>();
     if (authUser !== null) betterAuthUserIds.push(authUser.id);
-    const url = messages[0]?.match(/https:\/\/badges\.example\.edu[^\s]+/u)?.[0];
+    const url = relay.messages[0]?.mail.text?.match(/https:\/\/badges\.example\.edu[^\s]+/u)?.[0];
     expect(url).toBeDefined();
     if (url === undefined) throw new Error("Recorded link missing");
     const confirmation = await app.request(url, {}, { ...env, REQUEST_CLIENT_IP: peer });

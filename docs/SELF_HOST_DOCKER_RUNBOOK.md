@@ -33,10 +33,14 @@ Optional:
 - `TRUSTED_PROXY_CIDRS` (comma-separated IPv4/IPv6 addresses or CIDRs; empty by default)
 - `JOB_PROCESSOR_TOKEN`
 - `AWS_SESSION_TOKEN`
-- `EMAIL_PROVIDER` (`ses` for AWS SES, or omit to disable outbound email)
+- `EMAIL_PROVIDER` (`smtp`, `ses`, or `none`; defaults to `none`)
 - `AWS_SES_REGION` (defaults to `S3_REGION` if omitted)
-- `TRANSACTIONAL_EMAIL_FROM_ADDRESS` (required when `EMAIL_PROVIDER=ses`)
+- `TRANSACTIONAL_EMAIL_FROM_ADDRESS` (required for SMTP or SES)
 - `AWS_SES_CONFIGURATION_SET`
+- `TRANSACTIONAL_EMAIL_FROM_NAME` (defaults to `CredTrail`)
+- `TRANSACTIONAL_EMAIL_REPLY_TO` (optional reply mailbox)
+- `ISSUANCE_EMAIL_BCC` (optional comma-separated badge notification copies; see below)
+- SMTP connection and secret settings (see **Configure SMTP**)
 
 Worker notes:
 
@@ -210,21 +214,108 @@ Before using the compose stack beyond local validation, replace the sample `BETT
 with a stable random value and set `BETTER_AUTH_TRUSTED_ORIGINS` to the public HTTPS origin for
 the deployment.
 
-For outbound email, the Node self-host runtime supports `EMAIL_PROVIDER=ses`. Configure AWS
-credentials with SES send permissions and verify `TRANSACTIONAL_EMAIL_FROM_ADDRESS` in SES before
-enabling magic-link, password-reset, invite, or issuance emails. If `EMAIL_PROVIDER` is omitted,
-email delivery is disabled; configure SES before offering production email sign-in or invitations.
+Choose `EMAIL_PROVIDER=smtp` to use your mail service, or `EMAIL_PROVIDER=ses` to use the Amazon
+Simple Email Service (SES) API. Email stays disabled when the provider is omitted or set to `none`.
+Both providers support an optional `TRANSACTIONAL_EMAIL_REPLY_TO` mailbox.
 
-Production SES example:
+#### Configure SMTP
 
-The current SES adapter uses the same AWS credential variables as storage. This example requires
-AWS credentials with both S3 and SES permissions. R2 API credentials cannot authenticate SES.
+CredTrail sends directly to your mail service through Nodemailer. Configure these settings in
+`.env.selfhost`; Compose passes them to both the API and worker:
+
+```dotenv
+EMAIL_PROVIDER=smtp
+SMTP_HOST=smtp.example.edu
+SMTP_SECURITY=starttls
+SMTP_USERNAME=your-smtp-username
+SMTP_PASSWORD_FILE=/run/secrets/smtp_password
+TRANSACTIONAL_EMAIL_FROM_ADDRESS=badges@example.edu
+TRANSACTIONAL_EMAIL_FROM_NAME=Example University
+TRANSACTIONAL_EMAIL_REPLY_TO=support@example.edu
+```
+
+Use SMTP credentials from your mail service. These credentials are independent of your S3 or R2
+credentials. Some services issue SMTP credentials separately from their API credentials. Authorize
+the sender address with your mail service, and configure its SPF, DKIM, and DMARC DNS records.
+
+`SMTP_SECURITY=starttls` requires an encrypted upgrade and defaults to port 587. For immediate
+TLS, use `SMTP_SECURITY=tls`, which defaults to port 465. Set `SMTP_PORT` only if your relay uses
+another port. Use a DNS hostname in `SMTP_HOST`. CredTrail requires a valid certificate matching
+that hostname and TLS 1.2 or newer. Plaintext SMTP and disabled certificate checks are unsupported.
+
+Save your password in `.local/smtp-password`, and restrict access to that file. CredTrail preserves
+password whitespace and removes only one final newline from a mounted password file. The file
+must contain a nonempty password and be at most 64 KiB. Create `.local/compose.email.yml`:
 
 ```yaml
-EMAIL_PROVIDER: ses
-AWS_SES_REGION: us-east-1
-TRANSACTIONAL_EMAIL_FROM_ADDRESS: no-reply@example.edu
+services:
+  app:
+    secrets:
+      - smtp_password
+  worker:
+    secrets:
+      - smtp_password
+
+secrets:
+  smtp_password:
+    file: ./.local/smtp-password
 ```
+
+For this setup, add `-f .local/compose.email.yml` to your Compose commands. Set exactly one of
+`SMTP_PASSWORD_FILE` or `SMTP_PASSWORD`. Prefer a mounted file. If you put a password in
+`.env.selfhost`, use single quotes to preserve literal dollar signs and spaces. Keep passwords
+out of commands, commits, logs, and support reports.
+
+For a relay that authorizes clients through network access, set `SMTP_AUTH=none` and leave
+`SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_PASSWORD_FILE` empty. TLS is still required.
+For a private certificate authority, mount its PEM certificate read-only in both containers
+and set `SMTP_TLS_CA_FILE` to the container path. This file also has a 64 KiB limit.
+
+Optional: set `ISSUANCE_EMAIL_BCC` to up to ten comma-separated mailboxes. These mailboxes receive
+badge issuance notifications for **every tenant in this deployment**. Enable copies only when
+those recipients are authorized to receive all of that learner information. Copies are disabled
+by default. Sign-in links, password resets, invitations, governance messages, and operator test
+messages never receive automatic BCC. Recipient-facing email headers do not reveal BCC addresses.
+
+#### Check SMTP from the image
+
+Run this command from the app repository to check the connection, certificate, and authentication:
+
+```bash
+docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml -f .local/compose.email.yml run --rm --no-deps app node dist/node-runtime/node-email-check-runtime.js
+```
+
+This check sends no message. It exits successfully when connection and authentication succeed;
+it does not test sender authorization or inbox delivery. The image command needs only email
+settings, so you can also use it in `docker run` without database or bucket credentials. The
+reference Compose file still requires its normal database and bucket settings during parsing.
+Remove the extra email Compose file argument if you use `SMTP_PASSWORD` without mounted secrets.
+
+Optional: append `--to operator@example.edu` to send one test message. This message contains no
+account access link and receives no automatic BCC. A successful send means the relay accepted
+it; check the destination inbox separately. The command exits nonzero and names the setting or
+connection problem when a check fails. The check does not support SES connection verification.
+
+Mail checks are separate from API and worker readiness. CredTrail does not contact the relay on
+HTTP health requests. If a relay rejects a badge notification, the badge remains issued and its
+email receipt records failure. If a connection drops after sending, acceptance can be uncertain.
+CredTrail never retries that send automatically; a manual retry can send a duplicate message.
+If only an optional BCC recipient rejects, primary acceptance remains successful.
+
+#### Configure SES
+
+SES uses the existing AWS credential variables used by storage. Those credentials need SES send
+permissions as well as S3 permissions. R2 API credentials cannot authenticate SES. Verify the sender
+address and set:
+
+```dotenv
+EMAIL_PROVIDER=ses
+AWS_SES_REGION=us-east-1
+TRANSACTIONAL_EMAIL_FROM_ADDRESS=badges@example.edu
+```
+
+Optional: set `AWS_SES_CONFIGURATION_SET`. Reply-To and issuance-only BCC follow the same policy
+as SMTP. Selecting a provider is explicit; CredTrail does not switch providers after a failure.
 
 Cloudflare `EMAIL` and `AI` bindings are SaaS/Workers-only. Self-hosted installs should upload
 badge artwork manually; badge image generation is unavailable until a Node AI/image provider is
@@ -297,9 +388,10 @@ run in production on Node 24. It checks database/storage health, S3 immutable wr
 deletion, discovery, real login CSS/JS/fonts and their HTTP policies/logs, the browser login script,
 TLS POST and CSRF behavior, spoof-resistant client IP limits, the namespace route, lifecycle jobs,
 queued issuance identity and replay, and active/revoked status lists.
-Its browser uses a nonexistent recipient so it sends no email. A Postgres integration test separately
-records actual production magic-link delivery in memory and verifies the confirmation/consumption
-flow and secure cookie. No real mailbox is contacted by either check.
+The driver also owns a TLS SMTP relay. It checks the packaged email command without database or
+bucket credentials, follows a real production magic link, and verifies queued issuance email
+acceptance and failure audits. A Postgres integration test separately captures TLS SMTP delivery
+and verifies the confirmation/consumption flow and secure cookie. No real mailbox is contacted by either check.
 
 CI also verifies both shipped Compose configurations with `scripts/selfhost-compose-smoke.mjs`.
 The check uses the built image in isolated projects without published host ports. It tests the

@@ -76,7 +76,7 @@ jobs:
       - name: Install production smoke browser
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Verify production self-host contracts through TLS
+      - name: Verify production self-host TLS, SMTP and issuance contracts
         run: node scripts/selfhost-production-smoke.mjs --image credtrail-ci:${{ github.sha }}
 
       - name: Verify Compose with external and local Postgres

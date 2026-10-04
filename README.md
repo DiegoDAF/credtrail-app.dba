@@ -161,7 +161,9 @@ docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml up --buil
 For local Postgres, set `DATABASE_URL=postgres://credtrail:credtrail@postgres:5432/credtrail` and add
 `-f docker-compose.selfhost-postgres.yml` before `up`. See the
 [Docker runbook](docs/SELF_HOST_DOCKER_RUNBOOK.md) for certificate mounts, production settings,
-backups, and validation.
+backups, and validation. Docker installations can send email through SMTP or Amazon SES. The
+[SMTP setup and image email check](docs/SELF_HOST_DOCKER_RUNBOOK.md#configure-smtp) cover mounted
+passwords, Reply-To, and optional copies of badge notifications.
 
 ## Observability
 

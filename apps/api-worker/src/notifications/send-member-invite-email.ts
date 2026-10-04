@@ -27,6 +27,7 @@ export const sendMemberInviteEmailNotification = async (
   ].join("\n");
 
   await sendTransactionalEmail({
+    kind: "member_invite",
     emailBinding: input.emailBinding,
     fromEmail: input.fromEmail,
     fromName: input.fromName,

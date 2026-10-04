@@ -38,6 +38,7 @@ describe("sendPasswordResetEmailNotification", () => {
           "https://credtrail.test/auth/reset-password?token=test-token",
         ),
         headers: {
+          "X-CredTrail-Email-Kind": "password_reset",
           "X-CredTrail-Email-Category": "Auth Password Reset",
         },
       }),

@@ -25,6 +25,7 @@ export const sendBadgeRuleApprovalSubmittedEmail = async (
   },
 ): Promise<void> => {
   await sendTransactionalEmail({
+    kind: "rule_approval",
     emailBinding: input.emailBinding,
     fromEmail: input.fromEmail,
     fromName: input.fromName,
@@ -51,6 +52,7 @@ export const sendBadgeRuleApprovalDecisionEmail = async (
   },
 ): Promise<void> => {
   await sendTransactionalEmail({
+    kind: "rule_approval",
     emailBinding: input.emailBinding,
     fromEmail: input.fromEmail,
     fromName: input.fromName,

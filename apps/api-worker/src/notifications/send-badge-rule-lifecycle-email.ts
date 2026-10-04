@@ -63,6 +63,7 @@ export const sendBadgeRuleLifecycleReminderNotifications = async (
   await Promise.allSettled(
     recipientEmails.map((recipientEmail) =>
       sendTransactionalEmail({
+        kind: "rule_lifecycle",
         emailBinding: input.emailBinding,
         fromEmail: input.fromEmail,
         fromName: input.fromName,
