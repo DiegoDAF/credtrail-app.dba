@@ -8,12 +8,10 @@ const mimeTypes: Readonly<Record<string, string>> = {
 };
 
 /** Only generated UI assets are exposed; real paths enforce symlink containment. */
-export const createNodePublicAssets = (
-  root: string,
-): ((request: Request) => Promise<Response | null>) => {
+export const createNodePublicAssets = (root: string): ((request: Request) => Promise<Response>) => {
   return async (request) => {
     const pathname = new URL(request.url).pathname;
-    if (!pathname.startsWith("/assets/ui/")) return null;
+    if (!pathname.startsWith("/assets/ui/")) return new Response(null, { status: 404 });
     if (request.method !== "GET" && request.method !== "HEAD")
       return new Response(null, { status: 404 });
     let relative: string;
@@ -38,7 +36,6 @@ export const createNodePublicAssets = (
       const headers = {
         "content-type": mime,
         "content-length": String(info.size),
-        "x-content-type-options": "nosniff",
         "cache-control": /[.-][a-f0-9]{8,}[.-]/iu.test(relative)
           ? "public, max-age=31536000, immutable"
           : "public, max-age=3600",

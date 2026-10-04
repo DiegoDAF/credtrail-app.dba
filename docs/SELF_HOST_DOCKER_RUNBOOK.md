@@ -131,6 +131,8 @@ The Node adapter resolves this directory from its installed bundle, independentl
 working directory. It serves GET/HEAD only, enforces real-path containment (including symlinks),
 and returns accurate content types with `nosniff`. Content-hashed files receive immutable year-long
 caching; any unversioned assets receive a bounded one-hour cache. The current font is content-hashed.
+Asset responses pass through the same Hono middleware as app routes, including canonical-origin
+checks, security headers, request IDs and request logging. Missing assets receive those policies too.
 
 Run the production acceptance driver after building an image:
 
@@ -141,9 +143,11 @@ node scripts/selfhost-production-smoke.mjs --image credtrail-selfhost:test
 ```
 
 The driver owns disposable Postgres, S3, API/worker, network and TLS proxy resources and removes
-them on exit. Both API and worker run in production on Node 24. It checks database/storage health,
-real login CSS/JS/fonts, the browser login script, TLS POST and CSRF behavior, spoof-resistant client
-IP limits, the namespace route, queued issuance identity and replay, and active/revoked status lists.
+them on exit. CI runs this same driver as its single Docker acceptance stack. Both API and worker
+run in production on Node 24. It checks database/storage health, S3 immutable writes/read/metadata/
+deletion, discovery, real login CSS/JS/fonts and their HTTP policies/logs, the browser login script,
+TLS POST and CSRF behavior, spoof-resistant client IP limits, the namespace route, lifecycle jobs,
+queued issuance identity and replay, and active/revoked status lists.
 Its browser uses a nonexistent recipient so it sends no email. A Postgres integration test separately
 records actual production magic-link delivery in memory and verifies the confirmation/consumption
 flow and secure cookie. No real mailbox is contacted by either check.

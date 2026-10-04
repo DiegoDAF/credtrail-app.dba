@@ -10,13 +10,15 @@ import {
   parseNodeRuntimePort,
 } from "./runtime/node-runtime";
 
-const workerBindings = createNodeRuntimeBindings(process.env);
+const workerBindings = {
+  ...createNodeRuntimeBindings(process.env),
+  PUBLIC_ASSETS: createNodePublicAssets(
+    fileURLToPath(new URL("../../public/assets/ui/", import.meta.url)),
+  ),
+};
 const executionContext = createNodeExecutionContext();
 const port = parseNodeRuntimePort(process.env);
 const adaptRequest = createNodeRequestAdapter(process.env.TRUSTED_PROXY_CIDRS);
-const publicAssets = createNodePublicAssets(
-  fileURLToPath(new URL("../../public/assets/ui/", import.meta.url)),
-);
 
 serve(
   {
@@ -29,13 +31,6 @@ serve(
         workerBindings,
       );
       if (adapted.status === "error") return adapted.response;
-      if (
-        workerBindings.APP_ENV !== "production" ||
-        new URL(adapted.request.url).origin === workerBindings.PUBLIC_APP_ORIGIN
-      ) {
-        const asset = await publicAssets(adapted.request);
-        if (asset !== null) return asset;
-      }
       return app.fetch(adapted.request, adapted.bindings, executionContext);
     },
   },

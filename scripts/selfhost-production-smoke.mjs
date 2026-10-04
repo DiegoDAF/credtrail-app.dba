@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { createHash, generateKeyPairSync, randomBytes } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -182,6 +182,18 @@ try {
     }),
   };
   const envArgs = Object.entries(values).flatMap(([name, value]) => ["-e", `${name}=${value}`]);
+  await docker(
+    "run",
+    "--rm",
+    "--network",
+    network,
+    ...envArgs,
+    image,
+    "node",
+    "--input-type=module",
+    "-e",
+    await readFile(new URL("./fixtures/selfhost-storage-contract.mjs", import.meta.url), "utf8"),
+  );
   await start("app", ["-p", `127.0.0.1:${apiPort}:8787`, ...envArgs], image);
   await start(
     "proxy",
@@ -207,6 +219,7 @@ try {
   assert.equal(wrongOrigin.status(), 308);
   const login = await http.get(`${origin}/login`);
   assert.equal(login.status(), 200);
+  assert.equal((await http.get(`${origin}/ims/ob/v3p0/discovery`)).status(), 200);
   const html = await login.text();
   const assetUrls = [...html.matchAll(/(?:src|href)="([^"]*\/assets\/ui\/[^"]+)"/gu)].map(
     (match) => match[1],
@@ -219,9 +232,27 @@ try {
     for (const font of stylesheet.matchAll(/url\("([^"]+\.woff2)"\)/gu)) assets.push(font[1]);
   }
   assert(assets.some((url) => url.endsWith(".woff2")));
+  const wrongAssetOrigin = await http.get(`http://127.0.0.1:${apiPort}${assetUrls[0]}`, {
+    maxRedirects: 0,
+  });
+  assert.equal(wrongAssetOrigin.status(), 308);
+  assert.equal(wrongAssetOrigin.headers().location, new URL(assetUrls[0], origin).href);
+  const assetRequestId = "production-smoke-asset";
+  const assertAssetPolicies = (response) => {
+    const headers = response.headers();
+    assert.equal(headers["x-request-id"], assetRequestId);
+    assert.equal(headers["x-content-type-options"], "nosniff");
+    assert.match(headers["strict-transport-security"], /max-age=/u);
+    assert.equal(headers["referrer-policy"], "strict-origin-when-cross-origin");
+    assert.match(headers["content-security-policy"], /default-src 'self'/u);
+  };
   for (const asset of assets) {
-    const response = await http.get(new URL(asset, origin).href);
+    const response = await http.get(new URL(asset, origin).href, {
+      headers: { "x-request-id": assetRequestId },
+    });
     assert.equal(response.status(), 200);
+    assertAssetPolicies(response);
+    assert.match(response.headers()["cache-control"], /^public,/u);
     assert.match(
       response.headers()["content-type"],
       asset.endsWith(".css")
@@ -230,10 +261,34 @@ try {
           ? /javascript/u
           : /font\/woff2/u,
     );
-    const head = await http.head(new URL(asset, origin).href);
+    const head = await http.head(new URL(asset, origin).href, {
+      headers: { "x-request-id": assetRequestId },
+    });
+    assert.equal(head.status(), 200);
+    assertAssetPolicies(head);
     assert.equal((await head.body()).length, 0);
     assert.equal(head.headers()["content-type"], response.headers()["content-type"]);
+    assert.equal(head.headers()["content-length"], response.headers()["content-length"]);
   }
+  const missingAsset = await http.get(`${origin}/assets/ui/missing.css`, {
+    headers: { "x-request-id": assetRequestId },
+  });
+  assert.equal(missingAsset.status(), 404);
+  assertAssetPolicies(missingAsset);
+  assert.equal(missingAsset.headers()["cache-control"], "no-store");
+  const assetLogs = (await docker("logs", `${prefix}-app`)).split("\n").flatMap((line) => {
+    try {
+      const record = JSON.parse(line);
+      return record.requestId === assetRequestId && record.message === "http_request"
+        ? [record]
+        : [];
+    } catch {
+      return [];
+    }
+  });
+  assert(assetLogs.some((record) => record.method === "GET" && record.status === 200));
+  assert(assetLogs.some((record) => record.method === "HEAD" && record.status === 200));
+  assert(assetLogs.some((record) => record.status === 404));
   const namespace = await http.get(`${origin}/ns/trusted-credential/v1`);
   assert.equal(namespace.status(), 200);
   assert.match(namespace.headers()["content-type"], /application\/ld\+json/u);
@@ -328,6 +383,11 @@ INSERT INTO tenant_api_keys (id,tenant_id,label,key_prefix,key_hash,scopes_json,
   });
   assert.equal(accepted.status(), 202);
   const envelope = await accepted.json();
+  await sql(`INSERT INTO job_queue_messages
+(id,tenant_id,job_type,payload_json,idempotency_key,available_at,status,created_at,updated_at)
+VALUES ('smoke-lifecycle','smoke_empty_tenant','process_badge_rule_lifecycle',
+json_build_object('scheduledFor','2026-08-17T00:00:00.000Z')::text,'smoke-lifecycle',
+CURRENT_TIMESTAMP::text,'pending',CURRENT_TIMESTAMP::text,CURRENT_TIMESTAMP::text)`);
   await start("worker", [...envArgs, "-e", "JOB_POLL_INTERVAL_MS=250"], image, [
     "node",
     "dist/node-runtime/node-worker-runtime.js",
@@ -345,6 +405,12 @@ INSERT INTO tenant_api_keys (id,tenant_id,label,key_prefix,key_hash,scopes_json,
     );
     throw new Error(`Production queue issuance failed: ${failure}`);
   }
+  await poll(
+    async () =>
+      (await sql("SELECT status FROM job_queue_messages WHERE id='smoke-lifecycle'")) ===
+      "completed",
+    "production lifecycle queue job",
+  );
   const row = JSON.parse(
     await sql(
       "SELECT row_to_json(a) FROM (SELECT id,public_id,vc_r2_key FROM assertions WHERE tenant_id='smoke_tenant') a",
@@ -411,7 +477,7 @@ INSERT INTO tenant_api_keys (id,tenant_id,label,key_prefix,key_hash,scopes_json,
   assert.equal(inactive.verification.checks.credentialStatus.revoked, true);
   assert.equal((await docker("exec", `${prefix}-app`, "node", "--version")).split(".")[0], "v24");
   console.log(
-    "Production Node 24 API/worker, Postgres, TLS POST/CSRF, packaged login assets/browser script, forged-header IP limits, namespace, issuance identity/replay, independent signature verification and active/revoked status checks passed.",
+    "Production Node 24 API/worker, Postgres, S3 storage contracts, discovery, TLS POST/CSRF, packaged login assets/HTTP policies/request logs/browser script, forged-header IP limits, namespace, lifecycle queue job, issuance identity/replay, independent signature verification and active/revoked status checks passed.",
   );
 } finally {
   await Promise.allSettled([browser?.close(), http?.dispose()]);

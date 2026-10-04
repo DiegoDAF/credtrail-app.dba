@@ -45,6 +45,8 @@ export interface AppBindings {
   OB3_OAUTH_REFRESH_URL?: string;
   BADGE_IMAGE_GENERATION_MODEL?: string;
   PUBLIC_RESOURCE_NETWORK?: PublicResourceNetwork;
+  /** Runtime asset reader; responses pass through the shared HTTP middleware. */
+  PUBLIC_ASSETS?: (request: Request) => Promise<Response>;
 }
 
 export interface AppEnv {

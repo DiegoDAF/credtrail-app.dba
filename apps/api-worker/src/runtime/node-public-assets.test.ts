@@ -55,6 +55,6 @@ describe("generated Node assets", () => {
       (await serve(new Request("https://badges.example.edu/assets/ui/a.js", { method: "POST" })))
         ?.status,
     ).toBe(404);
-    expect(await serve(new Request("https://badges.example.edu/login"))).toBeNull();
+    expect((await serve(new Request("https://badges.example.edu/login"))).status).toBe(404);
   });
 });
