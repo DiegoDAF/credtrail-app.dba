@@ -1,10 +1,10 @@
 import {
-  isBlockedNetworkHostname,
   isPublicNetworkAddress,
   literalNetworkAddress,
   normalizeNetworkHostname,
   type ResolvedNetworkAddress,
 } from "./public-network-address";
+import { publicHttpUrl } from "./public-http-url";
 
 export type { ResolvedNetworkAddress } from "./public-network-address";
 
@@ -83,24 +83,8 @@ const parseCandidateUrl = (
   value: string,
   baseUrl?: URL,
 ): { readonly status: "ok"; readonly url: URL } | { readonly status: "error" } => {
-  let url: URL;
-
-  try {
-    url = baseUrl === undefined ? new URL(value) : new URL(value, baseUrl);
-  } catch {
-    return { status: "error" };
-  }
-
-  if (
-    (url.protocol !== "https:" && url.protocol !== "http:") ||
-    url.username.length > 0 ||
-    url.password.length > 0 ||
-    isBlockedNetworkHostname(url.hostname)
-  ) {
-    return { status: "error" };
-  }
-
-  return { status: "ok", url };
+  const url = publicHttpUrl(value, baseUrl);
+  return url === null ? { status: "error" } : { status: "ok", url };
 };
 
 const resolvedAddressesForUrl = async (

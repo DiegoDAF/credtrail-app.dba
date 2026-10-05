@@ -1,10 +1,11 @@
 import { appPage, type AppPage } from "../ui/render-page";
+import { publicHttpUrl } from "../http/public-http-url";
 import {
   badgeTemplateCriteriaRegistryHref,
   badgeTemplateShowcaseHref,
   tenantBadgeCriteriaRegistryHref,
 } from "./badge-template-public-links";
-import { buildSeoHeadContent, resolveAbsoluteWebUrl } from "./public-badge-renderer-helpers";
+import { buildSeoHeadContent } from "./public-badge-renderer-helpers";
 import type {
   CreatePublicBadgePageRenderersInput,
   PublicBadgeCriteriaRegistryViewModel,
@@ -39,11 +40,8 @@ const isGenericApprovalStepLabel = (label: string): boolean => {
 export const createTenantBadgeCriteriaRegistryPage = (
   input: CreatePublicBadgePageRenderersInput,
 ): PublicBadgePageRenderers["tenantBadgeCriteriaRegistryPage"] => {
-  const { formatIsoTimestamp, isWebUrl } = input;
+  const { formatIsoTimestamp } = input;
   const ruleDefinitionSummaryMarkup = createRuleDefinitionSummaryMarkup(formatIsoTimestamp);
-  const toAbsoluteWebUrl = (requestUrl: string, value: string | null): string | null => {
-    return resolveAbsoluteWebUrl({ requestUrl, value, isWebUrl });
-  };
 
   return (
     requestUrl: string,
@@ -353,7 +351,11 @@ export const createTenantBadgeCriteriaRegistryPage = (
     const pageTitle = `${title} | CredTrail`;
     const socialImageUrl =
       model.templates
-        .map((entry) => toAbsoluteWebUrl(requestUrl, entry.template.imageUri))
+        .map((entry) =>
+          entry.template.imageUri === null
+            ? null
+            : (publicHttpUrl(entry.template.imageUri, canonicalUrl)?.toString() ?? null),
+        )
         .find((value): value is string => value !== null) ?? null;
 
     return appPage({

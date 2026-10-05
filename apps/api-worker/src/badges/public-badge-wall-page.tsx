@@ -1,11 +1,12 @@
 import { appPage, type AppPage } from "../ui/render-page";
+import { publicHttpUrl } from "../http/public-http-url";
 import {
   badgeTemplateCriteriaRegistryHref,
   badgeTemplateShowcaseHref,
   tenantBadgeCriteriaRegistryHref,
   tenantBadgeShowcaseHref,
 } from "./badge-template-public-links";
-import { buildSeoHeadContent, resolveAbsoluteWebUrl } from "./public-badge-renderer-helpers";
+import { buildSeoHeadContent } from "./public-badge-renderer-helpers";
 import type {
   CreatePublicBadgePageRenderersInput,
   PublicBadgePageRenderers,
@@ -16,10 +17,7 @@ import { BadgeWallButtonLink, BadgeWallCopyButton } from "./public-badge-ui";
 export const createTenantBadgeWallPage = (
   input: CreatePublicBadgePageRenderersInput,
 ): PublicBadgePageRenderers["tenantBadgeWallPage"] => {
-  const { formatIsoTimestamp, githubAvatarUrlForUsername, githubUsernameFromUrl, isWebUrl } = input;
-  const toAbsoluteWebUrl = (requestUrl: string, value: string | null): string | null => {
-    return resolveAbsoluteWebUrl({ requestUrl, value, isWebUrl });
-  };
+  const { formatIsoTimestamp, githubAvatarUrlForUsername, githubUsernameFromUrl } = input;
 
   return (
     requestUrl: string,
@@ -52,7 +50,11 @@ export const createTenantBadgeWallPage = (
     const pageTitle = `${title} | CredTrail`;
     const socialImageUrl =
       entries
-        .map((entry) => toAbsoluteWebUrl(requestUrl, entry.badgeImageUri))
+        .map((entry) =>
+          entry.badgeImageUri === null
+            ? null
+            : (publicHttpUrl(entry.badgeImageUri, canonicalUrl)?.toString() ?? null),
+        )
         .find((value): value is string => value !== null) ?? null;
 
     return appPage({

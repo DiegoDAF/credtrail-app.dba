@@ -200,6 +200,23 @@ describe("GET /showcase/:tenantId", () => {
     });
   });
 
+  it.each([
+    "https://user:password@example.edu/badge.png",
+    "http://10.0.0.1/badge.png",
+    "http://localhost/badge.png",
+  ])("excludes unusable artwork from social metadata (%s)", async (badgeImageUri) => {
+    mockedListPublicBadgeWallEntries.mockResolvedValue([
+      samplePublicBadgeWallEntry({ badgeImageUri }),
+    ]);
+    const response = await app.request("/showcase/sakai", undefined, createEnv());
+    const body = await response.text();
+    const head = body.slice(0, body.indexOf("</head>"));
+    expect(response.status).toBe(200);
+    expect(head).not.toContain('property="og:image"');
+    expect(head).not.toContain('name="twitter:image"');
+    expect(head).toContain('name="twitter:card" content="summary"');
+  });
+
   it("renders empty state when no badges are present", async () => {
     const env = createEnv();
     mockedListPublicBadgeWallEntries.mockResolvedValue([]);

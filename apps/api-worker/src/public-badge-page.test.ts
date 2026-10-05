@@ -322,7 +322,7 @@ describe("GET /badges/:badgeIdentifier", () => {
       type: ["VerifiableCredential", "OpenBadgeCredential"],
       issuer: {
         id: "did:web:credtrail.test:tenant_123",
-        name: "Example University",
+        name: 'Example "University" & Research',
         url: "https://example.edu",
       },
       evidence: [
@@ -343,7 +343,7 @@ describe("GET /badges/:badgeIdentifier", () => {
             id: "https://example.edu/badges/typescript-foundations/criteria",
           },
           image: {
-            id: "https://example.edu/badges/typescript-foundations/image.png",
+            id: "/badges/typescript-foundations/image.png",
           },
         },
       },
@@ -369,7 +369,7 @@ describe("GET /badges/:badgeIdentifier", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(body).toContain("TypeScript Foundations");
     expect(body).toContain("Verified");
-    expect(body).toContain("Example University");
+    expect(body).toContain("Example &quot;University&quot; &amp; Research");
     expect(body).toContain("https://example.edu");
     expect(body).toContain("Ada Lovelace");
     expect(body).toContain("/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22/verification");
@@ -435,7 +435,7 @@ describe("GET /badges/:badgeIdentifier", () => {
     expect(body).toContain("Awarded for completing TypeScript fundamentals.");
     expect(body).toContain("https://example.edu/badges/typescript-foundations/criteria");
     expect(body).toContain("/showcase/tenant_123/criteria?badgeTemplateId=badge_template_001");
-    expect(body).toContain('src="https://example.edu/badges/typescript-foundations/image.png"');
+    expect(body).toContain('src="/badges/typescript-foundations/image.png"');
     expect(body).not.toContain("data-fallback-src");
     expect(body).toContain("Capstone Submission");
     expect(body).toContain("https://example.edu/evidence/gradebook/123");
@@ -444,20 +444,41 @@ describe("GET /badges/:badgeIdentifier", () => {
       '<link rel="canonical" href="https://credtrail.test/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22"',
     );
     expect(body).toContain(
-      '<meta name="description" content="TypeScript Foundations credential issued by Example University. Awarded for completing TypeScript fundamentals."',
+      '<meta name="description" content="TypeScript Foundations credential issued by Example &quot;University&quot; &amp; Research. Awarded for completing TypeScript fundamentals."',
     );
     expect(body).toContain(
-      '<meta property="og:title" content="TypeScript Foundations | Example University"',
+      '<meta property="og:title" content="TypeScript Foundations | Example &quot;University&quot; &amp; Research"',
     );
     expect(body).toContain(
       '<meta property="og:url" content="https://credtrail.test/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22"',
     );
     expect(body).toContain(
-      '<meta property="og:image" content="https://example.edu/badges/typescript-foundations/image.png"',
+      '<meta property="og:image" content="https://credtrail.test/badges/typescript-foundations/image.png"',
     );
     expect(body).toContain('<meta name="twitter:card" content="summary_large_image"');
     expect(body).toContain(
-      '<meta name="twitter:image" content="https://example.edu/badges/typescript-foundations/image.png"',
+      '<meta name="twitter:image" content="https://credtrail.test/badges/typescript-foundations/image.png"',
+    );
+    const head = body.slice(0, body.indexOf("</head>"));
+    expect(head).toContain(
+      "<title>TypeScript Foundations | Example &quot;University&quot; &amp; Research</title>",
+    );
+    expect(head).toContain(
+      '<meta property="og:site_name" content="Example &quot;University&quot; &amp; Research"',
+    );
+    for (const attribute of ['property="og:description"', 'name="twitter:description"']) {
+      expect(head).toContain(
+        `${attribute} content="TypeScript Foundations credential issued by Example &quot;University&quot; &amp; Research. Awarded for completing TypeScript fundamentals."`,
+      );
+    }
+    expect(head).toContain(
+      '<meta name="twitter:title" content="TypeScript Foundations | Example &quot;University&quot; &amp; Research"',
+    );
+    expect(head).toContain(
+      '<meta property="og:image:alt" content="TypeScript Foundations badge artwork"',
+    );
+    expect(head).toContain(
+      '<meta name="twitter:image:alt" content="TypeScript Foundations badge artwork"',
     );
     expect(mockedRecordAssertionEngagementEvent).toHaveBeenCalledWith(
       fakeDb,

@@ -85,6 +85,11 @@ export const isWebUrl = (value: string): boolean => {
   }
 };
 
+/** Institution branding comes only from a display name, never an issuer identifier. */
+export const issuerBrandNameFromCredential = (credential: JsonObject): string | null => {
+  return asNonEmptyString(issuerObjectFromCredential(credential)?.name);
+};
+
 export const issuerNameFromCredential = (credential: JsonObject): string => {
   const issuerAsString = asNonEmptyString(credential.issuer);
 
@@ -92,14 +97,13 @@ export const issuerNameFromCredential = (credential: JsonObject): string => {
     return issuerDisplayNameFromDidWeb(issuerAsString) ?? issuerAsString;
   }
 
-  const issuerObject = issuerObjectFromCredential(credential);
-  const issuerName = asNonEmptyString(issuerObject?.name);
+  const issuerName = issuerBrandNameFromCredential(credential);
 
   if (issuerName !== null) {
     return issuerName;
   }
 
-  const issuerId = asNonEmptyString(issuerObject?.id);
+  const issuerId = asNonEmptyString(issuerObjectFromCredential(credential)?.id);
 
   if (issuerId !== null) {
     return issuerDisplayNameFromDidWeb(issuerId) ?? issuerId;

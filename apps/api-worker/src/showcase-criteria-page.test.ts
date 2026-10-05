@@ -406,6 +406,21 @@ describe("GET /showcase/:tenantId/criteria", () => {
     expect(body).toContain("No public badge templates matched this view.");
   });
 
+  it.each([
+    "https://user:password@example.edu/badge.png",
+    "http://10.0.0.1/badge.png",
+    "http://localhost/badge.png",
+  ])("excludes unusable artwork from social metadata (%s)", async (imageUri) => {
+    mockedListBadgeTemplates.mockResolvedValue([sampleTemplate({ imageUri })]);
+    const response = await app.request("/showcase/sakai/criteria", undefined, createEnv());
+    const body = await response.text();
+    const head = body.slice(0, body.indexOf("</head>"));
+    expect(response.status).toBe(200);
+    expect(head).not.toContain('property="og:image"');
+    expect(head).not.toContain('name="twitter:image"');
+    expect(head).toContain('name="twitter:card" content="summary"');
+  });
+
   it("renders empty state when no templates are available for tenant", async () => {
     mockedListBadgeTemplates.mockResolvedValue([]);
     mockedListTenantOrgUnits.mockResolvedValue([]);

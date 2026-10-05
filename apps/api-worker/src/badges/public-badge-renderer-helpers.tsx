@@ -11,25 +11,6 @@ export const nonEmptyText = (value: string | null): string | null => {
   return trimmed.length === 0 ? null : trimmed;
 };
 
-export const resolveAbsoluteWebUrl = (input: {
-  requestUrl: string;
-  value: string | null;
-  isWebUrl: (value: string) => boolean;
-}): string | null => {
-  const text = nonEmptyText(input.value);
-
-  if (text === null) {
-    return null;
-  }
-
-  try {
-    const absoluteUrl = new URL(text, input.requestUrl).toString();
-    return input.isWebUrl(absoluteUrl) ? absoluteUrl : null;
-  } catch {
-    return null;
-  }
-};
-
 export const hasContextUrl = (contextValue: unknown, expectedContextUrl: string): boolean => {
   if (typeof contextValue === "string") {
     return contextValue === expectedContextUrl;

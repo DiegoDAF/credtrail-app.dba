@@ -1,11 +1,7 @@
 import type { JsonObject } from "@credtrail/core-domain";
-import {
-  isBlockedNetworkHostname,
-  isPublicNetworkAddress,
-  literalNetworkAddress,
-} from "../http/public-network-address";
+import { publicHttpUrl } from "../http/public-http-url";
 import { asJsonObject, asNonEmptyString } from "../utils/value-parsers";
-import { badgeNameFromCredential } from "./credential-display";
+import { badgeNameFromCredential, issuerBrandNameFromCredential } from "./credential-display";
 import { achievementDetailsFromCredential, linkedDataReferenceId } from "./public-badge-helpers";
 
 export interface PublicBadgeLinkPreview {
@@ -16,46 +12,28 @@ export interface PublicBadgeLinkPreview {
   imageAlt: string | null;
 }
 
-const publicImageUrl = (value: string | null, canonicalUrl: string): string | null => {
-  if (value === null) {
-    return null;
-  }
-
-  try {
-    const url = new URL(value, canonicalUrl);
-    const address = literalNetworkAddress(url.hostname);
-    if (
-      (url.protocol !== "https:" && url.protocol !== "http:") ||
-      url.username !== "" ||
-      url.password !== "" ||
-      (address === null && !url.hostname.includes(".")) ||
-      isBlockedNetworkHostname(url.hostname) ||
-      (address !== null && !isPublicNetworkAddress(address))
-    ) {
-      return null;
-    }
-    return url.toString();
-  } catch {
-    return null;
-  }
-};
-
 export const publicBadgeLinkPreview = (
   credential: JsonObject,
   canonicalUrl: string,
 ): PublicBadgeLinkPreview => {
   const badgeName = asNonEmptyString(badgeNameFromCredential(credential)) ?? "Badge credential";
-  const issuer = asJsonObject(credential.issuer);
-  const issuerName = asNonEmptyString(issuer?.name);
+  const issuerName = issuerBrandNameFromCredential(credential);
   const siteName = issuerName ?? "CredTrail";
   const achievement = achievementDetailsFromCredential(credential);
   const introduction =
     issuerName === null
       ? `${badgeName} credential on CredTrail.`
       : `${badgeName} credential issued by ${issuerName}.`;
-  const badgeImageUrl = publicImageUrl(achievement.imageUri, canonicalUrl);
+  const badgeImageUrl =
+    achievement.imageUri === null
+      ? null
+      : (publicHttpUrl(achievement.imageUri, canonicalUrl)?.toString() ?? null);
+  const issuerImageUri = linkedDataReferenceId(asJsonObject(credential.issuer)?.image);
   const imageUrl =
-    badgeImageUrl ?? publicImageUrl(linkedDataReferenceId(issuer?.image), canonicalUrl);
+    badgeImageUrl ??
+    (issuerImageUri === null
+      ? null
+      : (publicHttpUrl(issuerImageUri, canonicalUrl)?.toString() ?? null));
 
   return {
     title: `${badgeName} | ${siteName}`,
