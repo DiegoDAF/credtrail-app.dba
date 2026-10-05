@@ -1,5 +1,10 @@
 import { badgeRecordsReturnHref } from "../admin/learner-record-link";
-import { findAssertionById, findBadgeTemplateById, findTenantById } from "@credtrail/db";
+import {
+  findAssertionById,
+  findBadgeTemplateById,
+  findTenantById,
+  findTenantLinkedInSettings,
+} from "@credtrail/db";
 import { parseTenantPathParams, parseAssertionPathParams } from "@credtrail/validation";
 import { z } from "zod";
 import { issuanceReceiptPath } from "../admin/issuance-receipt-page";
@@ -84,6 +89,7 @@ export const registerTenantNotificationRetryAdminRoutes = (
         send: async () => {
           const tenant = await findTenantById(db, tenantId);
           if (tenant === null) throw new Error("Notification institution is unavailable");
+          const linkedInSettings = await findTenantLinkedInSettings(db, tenantId);
           await input.send({
             emailBinding: c.env.EMAIL,
             fromEmail: c.env.TRANSACTIONAL_EMAIL_FROM_ADDRESS,
@@ -96,6 +102,13 @@ export const registerTenantNotificationRetryAdminRoutes = (
             publicBadgeUrl: canonicalAppUrl(c.env.PUBLIC_APP_ORIGIN, badgePath),
             verificationUrl: canonicalAppUrl(c.env.PUBLIC_APP_ORIGIN, `${badgePath}/verification`),
             credentialDownloadUrl: canonicalAppUrl(c.env.PUBLIC_APP_ORIGIN, `${badgePath}/jsonld`),
+            credentialPdfDownloadUrl: canonicalAppUrl(
+              c.env.PUBLIC_APP_ORIGIN,
+              `${badgePath}/download.pdf`,
+            ),
+            badgeDescription: assertion.achievementSnapshot.description,
+            badgeImageUrl: assertion.achievementSnapshot.imageUri,
+            linkedInOrganizationId: linkedInSettings?.organizationId ?? null,
           });
         },
       });
