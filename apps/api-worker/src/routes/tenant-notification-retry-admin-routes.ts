@@ -97,6 +97,12 @@ export const registerTenantNotificationRetryAdminRoutes = (
             verificationUrl: canonicalAppUrl(c.env.PUBLIC_APP_ORIGIN, `${badgePath}/verification`),
             credentialDownloadUrl: canonicalAppUrl(c.env.PUBLIC_APP_ORIGIN, `${badgePath}/jsonld`),
             validUntilIso: assertion.validUntil,
+            credentialPdfDownloadUrl: canonicalAppUrl(
+              c.env.PUBLIC_APP_ORIGIN,
+              `${badgePath}/download.pdf`,
+            ),
+            badgeDescription: assertion.achievementSnapshot.description,
+            badgeImageUrl: assertion.achievementSnapshot.imageUri,
           });
         },
       });

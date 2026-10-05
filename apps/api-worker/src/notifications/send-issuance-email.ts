@@ -1,4 +1,4 @@
-import type { EmailTheme } from "./email-theme";
+import { safeHttpUrl, type EmailTheme } from "./email-theme";
 import { sendTransactionalEmail } from "./transactional-email";
 
 export interface SendIssuanceEmailNotificationInput {
@@ -11,16 +11,41 @@ export interface SendIssuanceEmailNotificationInput {
   badgeTitle: string;
   issuedAtIso: string;
   publicBadgeUrl: string;
+  /** JSON API. Kept for callers; the email sends people to the badge page, which shows the verified status. */
   verificationUrl: string;
   credentialDownloadUrl: string;
   /** Expiry of the credential, when it has one. */
   validUntilIso?: string | null | undefined;
+  /** Human-friendly PDF copy, offered next to the credential download. */
+  credentialPdfDownloadUrl?: string | undefined;
+  badgeDescription?: string | null | undefined;
+  /** Public artwork URL shown as the email's hero image. */
+  badgeImageUrl?: string | null | undefined;
 }
+
+const formatIssuedDate = (iso: string): string => {
+  const date = new Date(iso);
+
+  if (!Number.isFinite(date.getTime())) {
+    return iso;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+};
 
 export const sendIssuanceEmailNotification = async (
   input: SendIssuanceEmailNotificationInput,
 ): Promise<void> => {
+  const institution = input.tenantDisplayName.trim();
+  const description = input.badgeDescription?.trim() ?? "";
+  const badgeImageUrl = safeHttpUrl(input.badgeImageUrl);
   const subject = `You've earned a new badge: ${input.badgeTitle}`;
+  // The tracked share route builds the LinkedIn link with the tenant's organization and the credential's dates.
   const linkedInUrl = `${input.publicBadgeUrl}/share/linkedin-profile`;
   await sendTransactionalEmail({
     kind: "issuance",
@@ -31,22 +56,31 @@ export const sendIssuanceEmailNotification = async (
     recipientEmail: input.recipientEmail,
     subject,
     content: {
-      institution: input.tenantDisplayName.trim(),
+      institution,
+      ...(badgeImageUrl === undefined
+        ? {}
+        : { image: { url: badgeImageUrl, alt: `${input.badgeTitle} badge` } }),
       title: `You have earned ${input.badgeTitle}`,
-      paragraphs: ["View your badge to see your achievement and share it with others."],
+      paragraphs: [
+        ...(description.length > 0 ? [description] : []),
+        "View your badge to see your achievement and share it with others.",
+      ],
       details: [
-        { label: "Issued", value: input.issuedAtIso },
+        { label: "Issued", value: formatIssuedDate(input.issuedAtIso) },
         ...(input.validUntilIso === undefined || input.validUntilIso === null
           ? []
-          : [{ label: "Valid until", value: input.validUntilIso }]),
+          : [{ label: "Valid until", value: formatIssuedDate(input.validUntilIso) }]),
       ],
       action: { label: "View your badge", url: input.publicBadgeUrl },
       secondaryActions: [
         { label: "Add to LinkedIn", url: linkedInUrl },
-        { label: "Verify your badge", url: input.verificationUrl },
+        ...(input.credentialPdfDownloadUrl === undefined
+          ? []
+          : [{ label: "Download PDF", url: input.credentialPdfDownloadUrl }]),
         { label: "Download your credential", url: input.credentialDownloadUrl },
       ],
-      footer: "Contact the issuing institution if you have questions about this badge.",
+      footer:
+        "This badge is an Open Badges 3.0 verifiable credential, cryptographically signed by the issuer. Anyone can verify it from the badge page, without an account.",
     },
     category: "Issuance Notification",
   });

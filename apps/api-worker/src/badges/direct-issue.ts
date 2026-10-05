@@ -654,6 +654,12 @@ export const createIssueBadgeForTenant = <
             credentialBaseUrl,
           ).toString(),
           validUntilIso: validity.validUntil ?? null,
+          credentialPdfDownloadUrl: new URL(
+            `${publicBadgePath}/download.pdf`,
+            credentialBaseUrl,
+          ).toString(),
+          badgeDescription: achievement.description,
+          badgeImageUrl: achievement.imageUri,
         });
       },
     });
