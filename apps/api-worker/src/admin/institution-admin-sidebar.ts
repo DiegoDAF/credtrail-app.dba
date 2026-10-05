@@ -15,6 +15,7 @@ export type InstitutionAdminSidebarView =
   | "rulesApprovals"
   | "rulesTemplates"
   | "rulesBuilder"
+  | "credentialSharing"
   | "accessMembers"
   | "accessOrgUnitAccess"
   | "accessGovernance"
@@ -44,6 +45,7 @@ export interface InstitutionAdminSidebarPaths {
   rulesApprovalsPath: string;
   rulesTemplatesPath: string;
   ruleBuilderPath: string;
+  credentialSharingPath: string;
   accessPath: string;
   accessMembersPath: string;
   accessOrgUnitAccessPath: string;
@@ -81,6 +83,7 @@ export const buildInstitutionAdminSidebarPaths = (
     rulesApprovalsPath: `${rulesWorkspacePath}/approvals`,
     rulesTemplatesPath: `${rulesWorkspacePath}/templates`,
     ruleBuilderPath: `${tenantAdminPath}/rules/new`,
+    credentialSharingPath: `${tenantAdminPath}/sharing`,
     accessPath,
     accessMembersPath: `${accessPath}/members`,
     accessOrgUnitAccessPath: `${accessPath}/org-unit-access`,
@@ -207,7 +210,8 @@ const buildInstitutionAdminSidebarSections = (
         {
           label: "Badge Program",
           icon: "badgeProgram",
-          defaultOpen: view === "rulesBuilder" || view === "rulesApprovals",
+          defaultOpen:
+            view === "rulesBuilder" || view === "rulesApprovals" || view === "credentialSharing",
           links: [
             {
               href: paths.rulesTemplatesPath,
@@ -219,6 +223,11 @@ const buildInstitutionAdminSidebarSections = (
               href: paths.rulesApprovalsPath,
               label: "Approvals",
               isCurrent: view === "rulesApprovals",
+            },
+            {
+              href: paths.credentialSharingPath,
+              label: "Credential sharing",
+              isCurrent: view === "credentialSharing",
             },
           ],
         },

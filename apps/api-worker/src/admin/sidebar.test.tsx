@@ -23,6 +23,15 @@ const renderSidebarHtml = (
 };
 
 describe("AdminSidebar", () => {
+  it.each(["free", "team", "institution", "enterprise"])(
+    "shows credential sharing under Badge Program on %s",
+    (tier) => {
+      const html = renderSidebarHtml("credentialSharing", tier);
+      expect(html).toContain('href="/tenants/tenant_123/admin/sharing"');
+      expect(html).toContain("Credential sharing");
+      expect(html).toContain('aria-current="page"');
+    },
+  );
   it("renders sign out as a server-side POST action in the sidebar footer", () => {
     const html = renderSidebarHtml("home");
 

@@ -1,5 +1,6 @@
 import type { ImmutableCredentialStore, JsonObject } from "@credtrail/core-domain";
 import {
+  findTenantLinkedInSettings,
   indexBadgeIssuanceRuleVersionsByRuleId,
   listBadgeIssuanceRuleVersionApprovalEventsForVersions,
   listBadgeIssuanceRuleVersionApprovalStepsForVersions,
@@ -240,11 +241,12 @@ export const registerPublicBadgeRoutes = <PublicBadgeValue extends PublicBadgeRo
     });
   };
 
-  const shareRedirectUrlForChannel = (
+  const shareRedirectUrlForChannel = async (
+    db: SqlDatabase,
     requestUrl: string,
     value: PublicBadgeValue,
     channel: string,
-  ): string | null => {
+  ): Promise<string | null> => {
     const publicBadgePath = `/badges/${encodeURIComponent(value.assertion.publicId)}`;
     const publicBadgeUrl = new URL(publicBadgePath, requestUrl).toString();
 
@@ -255,7 +257,10 @@ export const registerPublicBadgeRoutes = <PublicBadgeValue extends PublicBadgeRo
     }
 
     if (channel === "linkedin-profile") {
+      const settings = await findTenantLinkedInSettings(db, value.assertion.tenantId);
+      if (settings === null) throw new Error("Issuing institution not found");
       return linkedInAddToProfileUrl({
+        organizationId: settings.organizationId,
         badgeName: badgeNameFromCredential(value.credential),
         issuerName: issuerNameFromCredential(value.credential),
         issuedAtIso: value.assertion.issuedAt,
@@ -322,7 +327,12 @@ export const registerPublicBadgeRoutes = <PublicBadgeValue extends PublicBadgeRo
       return renderAppPage(c, publicBadgeNotFoundPage(publicRequestUrl(c)), 404);
     }
 
-    const redirectUrl = shareRedirectUrlForChannel(publicRequestUrl(c), result.value, channel);
+    const redirectUrl = await shareRedirectUrlForChannel(
+      db,
+      publicRequestUrl(c),
+      result.value,
+      channel,
+    );
 
     if (redirectUrl === null) {
       return c.text("Share action not supported", 404);

@@ -20,7 +20,8 @@ export type AdminListMessageWorkspace =
   | "access_api_keys"
   | "access_lms_connections"
   | "operations_manual_issue"
-  | "badge_templates";
+  | "badge_templates"
+  | "credential_sharing";
 
 export type AdminListMessageTone = "success" | "error";
 

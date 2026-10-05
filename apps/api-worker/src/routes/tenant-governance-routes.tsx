@@ -8,6 +8,7 @@ import { registerTenantAccessOrgUnitAccessAdminRoutes } from "./tenant-access-or
 import { registerTenantAccessRuleApprovalAdminRoutes } from "./tenant-access-rule-approval-admin-routes";
 import { registerTenantAdminPageRoutes } from "./tenant-admin-page-routes";
 import { registerTenantAdminReportingPageRoutes } from "./tenant-admin-reporting-page-routes";
+import { registerTenantSharingAdminRoutes } from "./tenant-sharing-admin-routes";
 import { registerTenantApiKeyAdminRoutes } from "./tenant-api-key-admin-routes";
 import { registerTenantApiKeyRoutes } from "./tenant-api-key-routes";
 import { registerTenantAuthManagementRoutes } from "./tenant-auth-management-routes";
@@ -92,6 +93,12 @@ export const registerTenantGovernanceRoutes = (
     resolveDatabase: input.resolveDatabase,
     defaultInstitutionOrgUnitId: input.defaultInstitutionOrgUnitId,
     requireScopedOrgUnitPermission: input.requireScopedOrgUnitPermission,
+    resolveInstitutionAdminAdminRole: auth.resolveInstitutionAdminAdminRole,
+  });
+
+  registerTenantSharingAdminRoutes({
+    app: input.app,
+    resolveDatabase: input.resolveDatabase,
     resolveInstitutionAdminAdminRole: auth.resolveInstitutionAdminAdminRole,
   });
 

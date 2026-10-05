@@ -81,7 +81,7 @@ import { createLearnerDashboardPage, learnerDidSettingsNoticeFromQuery } from ".
 import { createLearnerRecordPage } from "./learner/learner-record-page";
 import { sendIssuanceEmailNotification } from "./notifications/send-issuance-email";
 import { addSecondsToIso, generateOpaqueToken, sha256Base64Url, sha256Hex } from "./utils/crypto";
-import { formatIsoTimestamp, linkedInAddToProfileUrl } from "./utils/display-format";
+import { formatIsoTimestamp } from "./utils/display-format";
 import { asJsonObject, asNonEmptyString, asString } from "./utils/value-parsers";
 import { createApiWorker } from "./worker/create-worker";
 import { createPostgresQueueIngressStore } from "./queue/ingress-store";
@@ -244,7 +244,6 @@ const {
   issuerIdentifierFromCredential,
   issuerNameFromCredential,
   issuerUrlFromCredential,
-  linkedInAddToProfileUrl,
   publicBadgePathForAssertion,
   recipientAvatarUrlFromAssertion,
   recipientDisplayNameFromAssertion,

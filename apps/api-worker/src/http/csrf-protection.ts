@@ -45,7 +45,10 @@ export const validateCsrfRequestOrigin = (input: ValidateCsrfRequestOriginInput)
     return true;
   }
 
-  if (!cookieHeaderContains(input.cookieHeader, BETTER_AUTH_SESSION_COOKIE_NAME)) {
+  if (
+    !cookieHeaderContains(input.cookieHeader, BETTER_AUTH_SESSION_COOKIE_NAME) &&
+    !cookieHeaderContains(input.cookieHeader, `__Secure-${BETTER_AUTH_SESSION_COOKIE_NAME}`)
+  ) {
     return true;
   }
 

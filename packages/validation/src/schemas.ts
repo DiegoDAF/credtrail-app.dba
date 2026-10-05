@@ -14,6 +14,7 @@ export * from "./governance-metadata.js";
 export * from "./learner-record.js";
 export * from "./learner-pathways.js";
 export * from "./tenant-admin.js";
+export * from "./tenant-linkedin-settings.js";
 export * from "./badge-rules.js";
 export * from "./badge-rule-placement-availability.js";
 export * from "./auth.js";

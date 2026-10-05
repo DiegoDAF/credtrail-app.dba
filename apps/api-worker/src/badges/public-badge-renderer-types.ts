@@ -32,13 +32,6 @@ export interface CreatePublicBadgePageRenderersInput {
   issuerIdentifierFromCredential: (credential: JsonObject) => string | null;
   issuerNameFromCredential: (credential: JsonObject) => string;
   issuerUrlFromCredential: (credential: JsonObject) => string | null;
-  linkedInAddToProfileUrl: (input: {
-    badgeName: string;
-    issuerName: string;
-    issuedAtIso: string;
-    credentialUrl: string;
-    credentialId: string;
-  }) => string;
   publicBadgePathForAssertion: (assertion: AssertionRecord) => string;
   recipientAvatarUrlFromAssertion: (assertion: AssertionRecord) => string | null;
   recipientDisplayNameFromAssertion: (assertion: AssertionRecord) => string | null;

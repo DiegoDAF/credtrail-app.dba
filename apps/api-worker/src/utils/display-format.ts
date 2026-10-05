@@ -1,4 +1,7 @@
+import type { LinkedInOrganizationId } from "@credtrail/validation";
+
 interface LinkedInAddToProfileInput {
+  organizationId: LinkedInOrganizationId | null;
   badgeName: string;
   issuerName: string;
   issuedAtIso: string;
@@ -53,7 +56,9 @@ export const linkedInAddToProfileUrl = (input: LinkedInAddToProfileInput): strin
 
   const issuerName = input.issuerName.trim();
 
-  if (issuerName.length > 0 && issuerName !== "Unknown issuer") {
+  if (input.organizationId !== null) {
+    linkedInUrl.searchParams.set("organizationId", input.organizationId);
+  } else if (issuerName.length > 0 && issuerName !== "Unknown issuer") {
     linkedInUrl.searchParams.set("organizationName", issuerName);
   }
 

@@ -59,3 +59,5 @@ export { renameBadgeIssuanceRule } from "./badge-issuance-rule-names";
 export * from "./learner-pathway-awards.js";
 
 export * from "./badge-award-cycle.js";
+
+export * from "./tenant-linkedin-settings.js";
