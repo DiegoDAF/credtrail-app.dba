@@ -22,6 +22,11 @@ export interface AppBindings {
   ISSUANCE_EMAIL_NOTIFICATIONS_ENABLED?: string;
   TRANSACTIONAL_EMAIL_FROM_ADDRESS?: string;
   TRANSACTIONAL_EMAIL_FROM_NAME?: string;
+  /** Optional issuer look for transactional emails: hex colors and an absolute http(s) logo URL. */
+  EMAIL_THEME_HEADER_COLOR?: string;
+  EMAIL_THEME_ACCENT_COLOR?: string;
+  EMAIL_THEME_HIGHLIGHT_COLOR?: string;
+  EMAIL_LOGO_URL?: string;
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
   TURNSTILE_VERIFIER?: TurnstileVerifier;

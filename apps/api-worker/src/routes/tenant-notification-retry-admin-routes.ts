@@ -8,6 +8,7 @@ import { publicBadgePathForAssertion } from "../badges/public-badge-model";
 import { canonicalAppUrl } from "../http/canonical-app-url";
 import { retryFailedIssuanceEmail } from "../notifications/retry-issuance-email";
 import { sendIssuanceEmailNotification } from "../notifications/send-issuance-email";
+import { emailThemeFromBindings } from "../notifications/email-theme";
 import type { RegisterTenantOperationsAdminRoutesInput } from "./tenant-operations-admin-routes";
 
 export const registerTenantNotificationRetryAdminRoutes = (
@@ -87,6 +88,7 @@ export const registerTenantNotificationRetryAdminRoutes = (
             emailBinding: c.env.EMAIL,
             fromEmail: c.env.TRANSACTIONAL_EMAIL_FROM_ADDRESS,
             fromName: c.env.TRANSACTIONAL_EMAIL_FROM_NAME,
+            theme: emailThemeFromBindings(c.env),
             recipientEmail: assertion.recipientIdentity,
             badgeTitle: assertion.achievementSnapshot.title,
             tenantDisplayName: tenant.displayName,

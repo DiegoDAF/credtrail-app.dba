@@ -3,6 +3,7 @@ import {
   tenantMembershipRoleSatisfiesMinimumRole,
   type SqlDatabase,
 } from "@credtrail/db";
+import type { EmailTheme } from "./email-theme";
 import { sendTransactionalEmail } from "./transactional-email";
 
 export type BadgeRuleLifecycleReminderType = "expiry" | "recertification";
@@ -11,6 +12,7 @@ export interface SendBadgeRuleLifecycleReminderNotificationsInput {
   readonly emailBinding?: SendEmail | undefined;
   readonly fromEmail?: string | undefined;
   readonly fromName?: string | undefined;
+  readonly theme?: EmailTheme | undefined;
   readonly tenantId: string;
   readonly tenantDisplayName: string;
   readonly ruleName: string;
@@ -67,6 +69,7 @@ export const sendBadgeRuleLifecycleReminderNotifications = async (
         emailBinding: input.emailBinding,
         fromEmail: input.fromEmail,
         fromName: input.fromName,
+        theme: input.theme,
         recipientEmail,
         subject: lifecycleReminderSubject(input),
         content: {

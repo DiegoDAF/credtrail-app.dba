@@ -1,3 +1,4 @@
+import type { EmailTheme } from "./email-theme";
 import type { TransactionalEmailContent } from "./transactional-email-content";
 import { renderTransactionalEmail } from "./transactional-email-renderer";
 
@@ -22,6 +23,7 @@ export interface SendTransactionalEmailInput {
   subject: string;
   content: TransactionalEmailContent;
   category: string;
+  theme?: EmailTheme | undefined;
 }
 
 export const sendTransactionalEmail = async (input: SendTransactionalEmailInput): Promise<void> => {
@@ -29,11 +31,15 @@ export const sendTransactionalEmail = async (input: SendTransactionalEmailInput)
     return;
   }
 
-  const rendered = await renderTransactionalEmail(input.content);
+  const fromName = input.fromName?.trim() || DEFAULT_FROM_NAME;
+  const rendered = await renderTransactionalEmail(input.content, {
+    theme: input.theme,
+    brand: fromName,
+  });
   await input.emailBinding.send({
     from: {
       email: input.fromEmail?.trim() || DEFAULT_FROM_EMAIL,
-      name: input.fromName?.trim() || DEFAULT_FROM_NAME,
+      name: fromName,
     },
     to: input.recipientEmail,
     subject: input.subject,

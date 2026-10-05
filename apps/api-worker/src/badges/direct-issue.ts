@@ -37,6 +37,7 @@ import {
   type BadgeAchievementSnapshot,
 } from "@credtrail/validation";
 import type { SendIssuanceEmailNotificationInput } from "../notifications/send-issuance-email";
+import { emailThemeFromBindings } from "../notifications/email-theme";
 import type {
   SignCredentialForDidInput,
   SignCredentialForDidResult,
@@ -72,6 +73,10 @@ interface IssueBadgeBindings {
   ISSUANCE_EMAIL_NOTIFICATIONS_ENABLED?: string | undefined;
   TRANSACTIONAL_EMAIL_FROM_ADDRESS?: string | undefined;
   TRANSACTIONAL_EMAIL_FROM_NAME?: string | undefined;
+  EMAIL_THEME_HEADER_COLOR?: string | undefined;
+  EMAIL_THEME_ACCENT_COLOR?: string | undefined;
+  EMAIL_THEME_HIGHLIGHT_COLOR?: string | undefined;
+  EMAIL_LOGO_URL?: string | undefined;
 }
 
 const issuerUrlFromTenantDomain = (issuerDomain: string): string | undefined => {
@@ -625,6 +630,7 @@ export const createIssueBadgeForTenant = <
           emailBinding: context.env.EMAIL,
           fromEmail: context.env.TRANSACTIONAL_EMAIL_FROM_ADDRESS,
           fromName: context.env.TRANSACTIONAL_EMAIL_FROM_NAME,
+          theme: emailThemeFromBindings(context.env),
           recipientEmail: request.recipientIdentity.trim().toLowerCase(),
           badgeTitle: achievement.title,
           tenantDisplayName: options?.issuerName ?? tenant.displayName,

@@ -1,9 +1,11 @@
+import type { EmailTheme } from "./email-theme";
 import { sendTransactionalEmail } from "./transactional-email";
 
 export interface SendIssuanceEmailNotificationInput {
   emailBinding?: SendEmail | undefined;
   fromEmail?: string | undefined;
   fromName?: string | undefined;
+  theme?: EmailTheme | undefined;
   recipientEmail: string;
   tenantDisplayName: string;
   badgeTitle: string;
@@ -22,6 +24,7 @@ export const sendIssuanceEmailNotification = async (
     emailBinding: input.emailBinding,
     fromEmail: input.fromEmail,
     fromName: input.fromName,
+    theme: input.theme,
     recipientEmail: input.recipientEmail,
     subject,
     content: {

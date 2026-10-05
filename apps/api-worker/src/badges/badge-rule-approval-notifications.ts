@@ -9,6 +9,7 @@ import {
   type SqlDatabase,
 } from "@credtrail/db";
 import type { AppBindings } from "../app/types";
+import { emailThemeFromBindings } from "../notifications/email-theme";
 import {
   sendBadgeRuleApprovalDecisionEmail,
   sendBadgeRuleApprovalSubmittedNotifications,
@@ -94,6 +95,7 @@ export const notifyBadgeRuleApprovalSubmitted = async (
     emailBinding: input.env.EMAIL,
     fromEmail: input.env.TRANSACTIONAL_EMAIL_FROM_ADDRESS,
     fromName: input.env.TRANSACTIONAL_EMAIL_FROM_NAME,
+    theme: emailThemeFromBindings(input.env),
     tenantId: input.tenantId,
     tenantDisplayName: displayName,
     ruleName: badgeRuleVersionDisplayFields(input.version, rule ?? { customLabel: null })
@@ -139,6 +141,7 @@ export const notifyBadgeRuleApprovalDecision = async (
       emailBinding: input.env.EMAIL,
       fromEmail: input.env.TRANSACTIONAL_EMAIL_FROM_ADDRESS,
       fromName: input.env.TRANSACTIONAL_EMAIL_FROM_NAME,
+      theme: emailThemeFromBindings(input.env),
       tenantId: input.tenantId,
       tenantDisplayName: displayName,
       ruleName: badgeRuleVersionDisplayFields(input.version, rule ?? { customLabel: null })
@@ -167,6 +170,7 @@ export const notifyBadgeRuleApprovalDecision = async (
               emailBinding: input.env.EMAIL,
               fromEmail: input.env.TRANSACTIONAL_EMAIL_FROM_ADDRESS,
               fromName: input.env.TRANSACTIONAL_EMAIL_FROM_NAME,
+              theme: emailThemeFromBindings(input.env),
               tenantId: input.tenantId,
               tenantDisplayName: displayName,
               ruleName: badgeRuleVersionDisplayFields(input.version, rule ?? { customLabel: null })
