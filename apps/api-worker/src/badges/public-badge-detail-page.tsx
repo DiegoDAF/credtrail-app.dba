@@ -2,11 +2,10 @@ import { VC_JSON_LD_MEDIA_TYPE } from "../http/vc-media-types";
 import { appPage, type AppPage } from "../ui/render-page";
 import { badgeTemplateCriteriaRegistryHref } from "./badge-template-public-links";
 import { badgeInitialsFromName } from "./pdf";
+import { publicBadgeLinkPreview } from "./public-badge-link-preview";
 import {
   buildSeoHeadContent,
   hasContextUrl,
-  nonEmptyText,
-  resolveAbsoluteWebUrl,
   VC_DATA_MODEL_V2_CONTEXT_URL,
 } from "./public-badge-renderer-helpers";
 import type {
@@ -39,10 +38,6 @@ export const createPublicBadgePage = (
     recipientFromCredential,
     trustEdCredentialDetailsFromCredential,
   } = input;
-  const toAbsoluteWebUrl = (requestUrl: string, value: string | null): string | null => {
-    return resolveAbsoluteWebUrl({ requestUrl, value, isWebUrl });
-  };
-
   return (requestUrl: string, model: PublicBadgeViewModel): AppPage => {
     const badgeName = badgeNameFromCredential(model.credential);
     const issuerName = issuerNameFromCredential(model.credential);
@@ -248,11 +243,7 @@ export const createPublicBadgePage = (
           {issuerName}
         </a>
       );
-    const pageTitle = `${badgeName} | CredTrail`;
-    const pageDescription =
-      nonEmptyText(achievementDetails.description) ??
-      `${badgeName} credential issued by ${issuerName}.`;
-    const socialImageUrl = toAbsoluteWebUrl(requestUrl, displayBadgeImageUri);
+    const linkPreview = publicBadgeLinkPreview(model.credential, publicBadgeUrl);
     const recipientAvatarSection =
       recipientAvatarUrl === null ? null : (
         <img
@@ -348,13 +339,11 @@ export const createPublicBadgePage = (
     );
 
     return appPage({
-      title: pageTitle,
+      title: linkPreview.title,
       head: buildSeoHeadContent({
-        title: pageTitle,
-        description: pageDescription,
+        ...linkPreview,
         canonicalUrl: publicBadgeUrl,
         ogType: "article",
-        imageUrl: socialImageUrl,
         extraHeadContent: (
           <>
             <link rel="alternate" type={VC_JSON_LD_MEDIA_TYPE} href={ob3JsonUrl} />

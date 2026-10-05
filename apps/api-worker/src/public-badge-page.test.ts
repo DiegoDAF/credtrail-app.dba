@@ -444,10 +444,10 @@ describe("GET /badges/:badgeIdentifier", () => {
       '<link rel="canonical" href="https://credtrail.test/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22"',
     );
     expect(body).toContain(
-      '<meta name="description" content="Awarded for completing TypeScript fundamentals."',
+      '<meta name="description" content="TypeScript Foundations credential issued by Example University. Awarded for completing TypeScript fundamentals."',
     );
     expect(body).toContain(
-      '<meta property="og:title" content="TypeScript Foundations | CredTrail"',
+      '<meta property="og:title" content="TypeScript Foundations | Example University"',
     );
     expect(body).toContain(
       '<meta property="og:url" content="https://credtrail.test/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22"',
