@@ -628,8 +628,6 @@ export const createIssueBadgeForTenant = <
           recipientEmail: request.recipientIdentity.trim().toLowerCase(),
           badgeTitle: achievement.title,
           tenantDisplayName: options?.issuerName ?? tenant.displayName,
-          assertionId,
-          tenantId,
           issuedAtIso: issuedAt,
           publicBadgeUrl: new URL(publicBadgePath, credentialBaseUrl).toString(),
           verificationUrl: new URL(`${publicBadgePath}/verification`, credentialBaseUrl).toString(),

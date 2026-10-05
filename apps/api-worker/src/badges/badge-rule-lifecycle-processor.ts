@@ -79,13 +79,17 @@ const notifyLifecycleReminder = async (
     findBadgeIssuanceRuleById(input.db, input.tenantId, input.version.ruleId),
   ]);
 
+  if (tenant === null || tenant.displayName.trim().length === 0) {
+    return { status: "failed" };
+  }
+
   try {
     await sendBadgeRuleLifecycleReminderNotifications(input.db, {
       emailBinding: input.env.EMAIL,
       fromEmail: input.env.TRANSACTIONAL_EMAIL_FROM_ADDRESS,
       fromName: input.env.TRANSACTIONAL_EMAIL_FROM_NAME,
       tenantId: input.tenantId,
-      tenantDisplayName: tenant?.displayName ?? input.tenantId,
+      tenantDisplayName: tenant.displayName,
       ruleName: badgeRuleVersionDisplayFields(input.version, rule ?? { customLabel: null })
         .displayName,
       versionNumber: input.version.versionNumber,

@@ -12,7 +12,7 @@ describe("sendPasswordResetEmailNotification", () => {
       fromEmail: "no-reply@credtrail.org",
       fromName: "CredTrail",
       recipientEmail: "admin@example.edu",
-      tenantId: "tenant_123",
+
       tenantDisplayName: "Example University",
       resetUrl: "https://credtrail.test/auth/reset-password?token=test-token",
     });
@@ -41,7 +41,7 @@ describe("sendPasswordResetEmailNotification", () => {
     await expect(
       sendPasswordResetEmailNotification({
         recipientEmail: "admin@example.edu",
-        tenantId: "tenant_123",
+
         tenantDisplayName: "Example University",
         resetUrl: "https://credtrail.test/auth/reset-password?token=test-token",
       }),

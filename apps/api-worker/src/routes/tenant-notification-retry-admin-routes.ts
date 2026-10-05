@@ -73,8 +73,6 @@ export const registerTenantNotificationRetryAdminRoutes = (
           "Email notifications are unavailable. Share the public badge link with the learner.",
           "error",
         );
-      const tenant = await findTenantById(db, tenantId);
-      if (tenant === null) return c.text("Institution not found.", 404);
       const badgePath = publicBadgePathForAssertion(assertion);
       const result = await retryFailedIssuanceEmail({
         db,
@@ -82,21 +80,22 @@ export const registerTenantNotificationRetryAdminRoutes = (
         assertionId,
         actorUserId: authorized.principal.userId,
         failedAttemptId: parsed.data.failedAttemptId,
-        send: () =>
-          input.send({
+        send: async () => {
+          const tenant = await findTenantById(db, tenantId);
+          if (tenant === null) throw new Error("Notification institution is unavailable");
+          await input.send({
             emailBinding: c.env.EMAIL,
             fromEmail: c.env.TRANSACTIONAL_EMAIL_FROM_ADDRESS,
             fromName: c.env.TRANSACTIONAL_EMAIL_FROM_NAME,
             recipientEmail: assertion.recipientIdentity,
             badgeTitle: assertion.achievementSnapshot.title,
             tenantDisplayName: tenant.displayName,
-            assertionId,
-            tenantId,
             issuedAtIso: assertion.issuedAt,
             publicBadgeUrl: canonicalAppUrl(c.env.PUBLIC_APP_ORIGIN, badgePath),
             verificationUrl: canonicalAppUrl(c.env.PUBLIC_APP_ORIGIN, `${badgePath}/verification`),
             credentialDownloadUrl: canonicalAppUrl(c.env.PUBLIC_APP_ORIGIN, `${badgePath}/jsonld`),
-          }),
+          });
+        },
       });
       return finish(
         result === "accepted"

@@ -405,6 +405,14 @@ export const betterAuthProvider = createBetterAuthProvider<AppContext, AppBindin
     const defaultNextPath = "/auth/resolve";
     const nextPath = normalizeSafeRedirectPath(input.nextPath, defaultNextPath);
     const expiresAt = addSecondsToIso(new Date().toISOString(), MAGIC_LINK_TTL_SECONDS);
+    const institution =
+      input.tenantId === undefined
+        ? "CredTrail"
+        : (input.tenantDisplayName ??
+          (await findTenantById(resolveDatabase(context.env), input.tenantId))?.displayName);
+    if (institution === undefined || institution.trim().length === 0) {
+      return { tenantId: input.tenantId, email: input.email, deliveryStatus: "failed", expiresAt };
+    }
     let deliveryStatus: "sent" | "skipped" | "failed" = "skipped";
     let debugMagicLinkToken: string | undefined;
     let debugMagicLinkUrl: string | undefined;
@@ -428,11 +436,7 @@ export const betterAuthProvider = createBetterAuthProvider<AppContext, AppBindin
             fromEmail: context.env.TRANSACTIONAL_EMAIL_FROM_ADDRESS,
             fromName: context.env.TRANSACTIONAL_EMAIL_FROM_NAME,
             recipientEmail: email,
-            ...(input.tenantId === undefined ? {} : { tenantId: input.tenantId }),
-            tenantDisplayName:
-              input.tenantId === undefined
-                ? undefined
-                : (await findTenantById(resolveDatabase(context.env), input.tenantId))?.displayName,
+            tenantDisplayName: institution,
             magicLinkUrl: debugMagicLinkUrl,
             expiresAtIso: expiresAt,
             preferredLocale: input.preferredLocale,
@@ -453,9 +457,7 @@ export const betterAuthProvider = createBetterAuthProvider<AppContext, AppBindin
           fromEmail: context.env.TRANSACTIONAL_EMAIL_FROM_ADDRESS,
           fromName: context.env.TRANSACTIONAL_EMAIL_FROM_NAME,
           recipientEmail: email,
-          tenantId: input.tenantId,
-          tenantDisplayName: (await findTenantById(resolveDatabase(context.env), input.tenantId))
-            ?.displayName,
+          tenantDisplayName: institution,
           resetUrl: url,
         });
       },
@@ -636,14 +638,17 @@ export const requestTenantMemberInvite = async (
     findTenantAuthPolicy(db, input.tenantId),
   ]);
 
-  if (tenant?.planTier === "enterprise" && policy?.loginMode === "sso_required") {
+  if (tenant === null || tenant.displayName.trim().length === 0) {
+    return { deliveryStatus: "failed", inviteKind: "magic_link" };
+  }
+
+  if (tenant.planTier === "enterprise" && policy?.loginMode === "sso_required") {
     try {
       await sendMemberInviteEmailNotification({
         emailBinding: context.env.EMAIL,
         fromEmail: context.env.TRANSACTIONAL_EMAIL_FROM_ADDRESS,
         fromName: context.env.TRANSACTIONAL_EMAIL_FROM_NAME,
         recipientEmail: input.email,
-        tenantId: input.tenantId,
         tenantDisplayName: tenant.displayName,
         role: input.role,
         signInUrl: tenantMemberInviteLoginUrl(context, input.tenantId),
@@ -670,6 +675,7 @@ export const requestTenantMemberInvite = async (
   try {
     const result = await betterAuthProvider.requestMagicLink(context, {
       tenantId: input.tenantId,
+      tenantDisplayName: tenant.displayName,
       email: input.email,
       nextPath: "/auth/resolve",
     });

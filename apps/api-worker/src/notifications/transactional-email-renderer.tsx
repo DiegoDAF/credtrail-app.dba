@@ -1,4 +1,3 @@
-import { isValidElement } from "hono/jsx";
 import {
   transactionalEmailContentSchema,
   type TransactionalEmailContent,
@@ -163,6 +162,5 @@ export const renderTransactionalEmail = async (
       </body>
     </html>
   );
-  if (!isValidElement(document)) throw new Error("Email document could not be rendered");
-  return { text, html: "<!DOCTYPE html>" + (await document.toString()) };
+  return { text, html: "<!DOCTYPE html>" + (await document) };
 };

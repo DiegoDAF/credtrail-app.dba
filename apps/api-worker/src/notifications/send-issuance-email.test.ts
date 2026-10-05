@@ -13,8 +13,7 @@ describe("sendIssuanceEmailNotification", () => {
       fromName: "CredTrail",
       recipientEmail: "learner@example.edu",
       badgeTitle: "TypeScript Foundations",
-      assertionId: "tenant_123:assertion_456",
-      tenantId: "tenant_123",
+
       tenantDisplayName: "Example University",
       issuedAtIso: "2026-02-10T22:00:00.000Z",
       publicBadgeUrl: "https://credtrail.test/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22",
@@ -49,8 +48,7 @@ describe("sendIssuanceEmailNotification", () => {
       sendIssuanceEmailNotification({
         recipientEmail: "learner@example.edu",
         badgeTitle: "TypeScript Foundations",
-        assertionId: "tenant_123:assertion_456",
-        tenantId: "tenant_123",
+
         tenantDisplayName: "Example University",
         issuedAtIso: "2026-02-10T22:00:00.000Z",
         publicBadgeUrl: "https://credtrail.test/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22",

@@ -5,10 +5,8 @@ export interface SendIssuanceEmailNotificationInput {
   fromEmail?: string | undefined;
   fromName?: string | undefined;
   recipientEmail: string;
-  tenantDisplayName?: string | undefined;
+  tenantDisplayName: string;
   badgeTitle: string;
-  assertionId: string;
-  tenantId: string;
   issuedAtIso: string;
   publicBadgeUrl: string;
   verificationUrl: string;
@@ -27,7 +25,7 @@ export const sendIssuanceEmailNotification = async (
     recipientEmail: input.recipientEmail,
     subject,
     content: {
-      institution: input.tenantDisplayName?.trim() || "CredTrail",
+      institution: input.tenantDisplayName.trim(),
       title: `You have earned ${input.badgeTitle}`,
       paragraphs: ["View your badge to see your achievement and share it with others."],
       details: [{ label: "Issued", value: input.issuedAtIso }],

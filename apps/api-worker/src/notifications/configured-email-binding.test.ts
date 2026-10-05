@@ -27,7 +27,11 @@ it("applies the same reply and copy policy to real notification builders through
       issuanceBcc: ["records@example.edu"],
     },
   );
-  const common = { emailBinding, recipientEmail: "learner@example.edu", tenantId: "example" };
+  const common = {
+    emailBinding,
+    recipientEmail: "learner@example.edu",
+    tenantDisplayName: "Example",
+  };
   const accessLink = "https://badges.example.edu/access?token=private-disposable-token";
   await sendMagicLinkEmailNotification({
     ...common,
@@ -43,7 +47,7 @@ it("applies the same reply and copy policy to real notification builders through
   });
   await sendBadgeRuleApprovalSubmittedEmail({
     ...common,
-    tenantDisplayName: "Example",
+    tenantId: "example",
     ruleName: "Completion",
     versionNumber: 1,
     reviewUrl: accessLink,
@@ -52,7 +56,6 @@ it("applies the same reply and copy policy to real notification builders through
   await sendIssuanceEmailNotification({
     ...common,
     badgeTitle: "Completion",
-    assertionId: "example:assertion",
     issuedAtIso: "2026-10-04T12:00:00Z",
     publicBadgeUrl: "https://badges.example.edu/badge",
     verificationUrl: "https://badges.example.edu/verification",

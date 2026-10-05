@@ -1431,6 +1431,7 @@ describe("tenant member management endpoints", () => {
     });
     expect(betterAuthProvider.requestMagicLink).toHaveBeenCalledWith(expect.anything(), {
       tenantId: "tenant_123",
+      tenantDisplayName: "Tenant 123",
       email: "colleague@example.edu",
       nextPath: "/auth/resolve",
     });

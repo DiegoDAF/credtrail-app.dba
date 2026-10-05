@@ -10,6 +10,8 @@ export interface LtiAuthenticatedPrincipal extends AuthenticatedPrincipal {
 }
 
 export interface RequestMagicLinkInput {
+  /** Institution name already resolved by a trusted internal caller. */
+  tenantDisplayName?: string | undefined;
   tenantId?: string | undefined;
   email: string;
   nextPath?: string | undefined;

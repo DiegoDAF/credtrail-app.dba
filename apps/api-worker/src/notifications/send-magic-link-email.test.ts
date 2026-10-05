@@ -12,7 +12,7 @@ describe("sendMagicLinkEmailNotification", () => {
       fromEmail: "no-reply@credtrail.org",
       fromName: "CredTrail",
       recipientEmail: "learner@example.edu",
-      tenantId: "tenant_123",
+
       tenantDisplayName: "Example University",
       magicLinkUrl: "https://credtrail.test/auth/magic-link/verify?token=test-token",
       expiresAtIso: "2026-02-18T01:00:00.000Z",
@@ -72,6 +72,7 @@ describe("sendMagicLinkEmailNotification", () => {
       emailBinding,
       fromEmail: "no-reply@credtrail.org",
       recipientEmail: "learner@example.edu",
+      tenantDisplayName: "CredTrail",
       magicLinkUrl: "https://credtrail.test/auth/magic-link/verify?token=test-token",
       expiresAtIso: "2026-02-18T01:00:00.000Z",
     });
@@ -88,7 +89,7 @@ describe("sendMagicLinkEmailNotification", () => {
     await expect(
       sendMagicLinkEmailNotification({
         recipientEmail: "learner@example.edu",
-        tenantId: "tenant_123",
+
         tenantDisplayName: "Example University",
         magicLinkUrl: "https://credtrail.test/auth/magic-link/verify?token=test-token",
         expiresAtIso: "2026-02-18T01:00:00.000Z",

@@ -9,10 +9,10 @@ export const transactionalEmailContentSchema = z.object({
   institution: z.string().trim().min(1),
   title: z.string().trim().min(1),
   paragraphs: z.array(z.string()).min(1),
-  details: z.array(z.object({ label: z.string(), value: z.string() })),
+  details: z.array(z.object({ label: z.string(), value: z.string() })).default([]),
   action: actionSchema,
-  secondaryActions: z.array(actionSchema),
+  secondaryActions: z.array(actionSchema).default([]),
   footer: z.string().trim().min(1),
 });
 
-export type TransactionalEmailContent = z.infer<typeof transactionalEmailContentSchema>;
+export type TransactionalEmailContent = z.input<typeof transactionalEmailContentSchema>;

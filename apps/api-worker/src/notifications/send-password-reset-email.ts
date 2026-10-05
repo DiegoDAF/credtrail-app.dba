@@ -5,15 +5,14 @@ export interface SendPasswordResetEmailNotificationInput {
   fromEmail?: string | undefined;
   fromName?: string | undefined;
   recipientEmail: string;
-  tenantDisplayName?: string | undefined;
-  tenantId: string;
+  tenantDisplayName: string;
   resetUrl: string;
 }
 
 export const sendPasswordResetEmailNotification = async (
   input: SendPasswordResetEmailNotificationInput,
 ): Promise<void> => {
-  const institution = input.tenantDisplayName?.trim() || "CredTrail";
+  const institution = input.tenantDisplayName.trim();
   const subject = `Set up local access to ${institution}`;
   await sendTransactionalEmail({
     kind: "password_reset",
@@ -29,9 +28,7 @@ export const sendPasswordResetEmailNotification = async (
         "Set or reset your password for local emergency access.",
         "After setting your password, complete local MFA enrollment before relying on emergency access.",
       ],
-      details: [],
       action: { label: "Set your password", url: input.resetUrl },
-      secondaryActions: [],
       footer: "If you did not request this change, you can ignore this email.",
     },
     category: "Auth Password Reset",

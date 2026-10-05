@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import type { TransactionalEmailContent } from "./transactional-email-content";
 import { renderTransactionalEmail } from "./transactional-email-renderer";
 
-const content: TransactionalEmailContent = {
+const content = {
   institution: 'University & <script>alert("unsafe")</script> 学習',
   title: "Your achievement",
   paragraphs: ["First line\nSecond line"],
@@ -10,7 +10,7 @@ const content: TransactionalEmailContent = {
   action: { label: "View your badge", url: "https://badges.example.edu/badges/123?a=1&b=2" },
   secondaryActions: [{ label: "Download", url: "https://badges.example.edu/badges/123/download" }],
   footer: "Contact your institution.",
-};
+} satisfies TransactionalEmailContent;
 
 it("escapes institution names and comments while preserving equivalent text and links", async () => {
   const result = await renderTransactionalEmail(content);
@@ -53,4 +53,17 @@ it("keeps concurrent institutions isolated without shared mutable template state
   expect(results[0]?.text).not.toContain("South College");
   expect(results[1]?.html).toContain("South College");
   expect(results[1]?.text).not.toContain("North University");
+});
+
+it("defaults optional document lists without changing its action", async () => {
+  const result = await renderTransactionalEmail({
+    institution: "Example University",
+    title: "Sign in",
+    paragraphs: ["Use this link once."],
+    action: content.action,
+    footer: content.footer,
+  });
+  expect(result.text).toContain(content.action.url);
+  expect(result.html).toContain("View your badge");
+  expect(result.html).not.toContain("<dl");
 });

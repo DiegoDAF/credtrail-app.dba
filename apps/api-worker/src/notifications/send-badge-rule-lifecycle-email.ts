@@ -79,7 +79,6 @@ export const sendBadgeRuleLifecycleReminderNotifications = async (
             { label: "Due", value: input.dueAt },
           ],
           action: { label: "Review the rule", url: input.adminUrl },
-          secondaryActions: [],
           footer: "Review this rule to keep your institution’s badge issuance up to date.",
         },
         category: "Badge Rule Lifecycle",

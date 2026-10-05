@@ -1,3 +1,5 @@
+import { createRecordingEmailBinding } from "../test-support/recording-email";
+import { sendIssuanceEmailNotification } from "./send-issuance-email";
 import { expect, it } from "vitest";
 import { Hono } from "hono";
 import { findAssertionById, listAuditLogs } from "@credtrail/db";
@@ -102,7 +104,7 @@ describeDbIntegration("notification retry", () => {
         status: "failed",
       });
       const failed = await loadIssuanceEmailState(f.db, f.tenantId, assertionId);
-      let sends = 0;
+      const { emailBinding, messages } = createRecordingEmailBinding();
       let allowed = false;
       const app = new Hono<AppEnv>();
       registerTenantNotificationRetryAdminRoutes({
@@ -114,17 +116,12 @@ describeDbIntegration("notification retry", () => {
             : new Response("Forbidden", { status: 403 }),
         requireDelegatedIssuingAuthorityPermission: async () =>
           allowed ? null : new Response("Forbidden", { status: 403 }),
-        send: async (email) => {
-          sends += 1;
-          expect(email.recipientEmail).toBe("retry@example.edu");
-          expect(email.assertionId).toBe(assertionId);
-          expect(email.publicBadgeUrl).toMatch(/^https:\/\/credtrail.org\/badges\//);
-        },
+        send: sendIssuanceEmailNotification,
       });
       const env = {
         BETTER_AUTH_SECRET: "test-notification-secret",
         ISSUANCE_EMAIL_NOTIFICATIONS_ENABLED: "true",
-        EMAIL: { send: async () => {} },
+        EMAIL: emailBinding,
         PUBLIC_APP_ORIGIN: "https://credtrail.org",
       };
       const submit = async (
@@ -141,10 +138,13 @@ describeDbIntegration("notification retry", () => {
       allowed = true;
       expect((await submit("other-tenant", failed.attemptId ?? "missing")).status).toBe(403);
       expect((await submit(f.tenantId, "")).status).toBe(303);
-      expect(sends).toBe(0);
+      expect(messages).toHaveLength(0);
       expect((await submit(f.tenantId, failed.attemptId ?? "missing")).status).toBe(303);
       expect((await submit(f.tenantId, failed.attemptId ?? "missing")).status).toBe(303);
-      expect(sends).toBe(1);
+      expect(messages).toHaveLength(1);
+      expect(messages[0]?.to).toBe("retry@example.edu");
+      expect(messages[0]?.html).toContain("Badge Rule Test Tenant");
+      expect(messages[0]?.text).toContain("https://credtrail.org/badges/");
       const returnHref = `/tenants/${f.tenantId}/admin/operations/issued-badges?notificationStatus=failed&recipientQuery=retry&limit=100`;
       const response = await submit(f.tenantId, failed.attemptId ?? "missing", returnHref);
       const location = new URL(response.headers.get("location") ?? "", "https://example.edu");
@@ -156,6 +156,22 @@ describeDbIntegration("notification retry", () => {
         "https://external.example",
       );
       expect(external.headers.get("location")).not.toContain("returnTo");
+      await f.db
+        .prepare("UPDATE tenants SET display_name = ? WHERE id = ?")
+        .bind(" ", f.tenantId)
+        .run();
+      await recordIssuanceEmailOutcome({
+        db: f.db,
+        tenantId: f.tenantId,
+        assertionId,
+        status: "failed",
+      });
+      const nextAttempt = await loadIssuanceEmailState(f.db, f.tenantId, assertionId);
+      const missingName = await submit(f.tenantId, nextAttempt.attemptId ?? "missing");
+      expect(missingName.status).toBe(303);
+      expect(missingName.headers.get("location")).toContain("/admin/operations/issue/");
+      expect((await loadIssuanceEmailState(f.db, f.tenantId, assertionId)).outcome).toBe("failed");
+      expect(messages).toHaveLength(1);
     } finally {
       await cleanupTestResources(f.db, { tenantIds: [f.tenantId], userIds: [f.userId] });
     }

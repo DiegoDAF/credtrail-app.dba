@@ -57,10 +57,10 @@ const uniqueRecipientUserIds = (version: BadgeIssuanceRuleVersionRecord): readon
   );
 };
 
-const tenantDisplayName = async (db: SqlDatabase, tenantId: string): Promise<string> => {
+const tenantDisplayName = async (db: SqlDatabase, tenantId: string): Promise<string | null> => {
   const tenant = await findTenantById(db, tenantId);
 
-  return tenant?.displayName ?? tenantId;
+  return tenant?.displayName.trim() || null;
 };
 
 /** Notify the current approvers using the immutable submitted version metadata. */
@@ -86,7 +86,7 @@ export const notifyBadgeRuleApprovalSubmitted = async (
     }),
   ]);
 
-  if (firstPendingStep === null) {
+  if (displayName === null || firstPendingStep === null) {
     return;
   }
 
@@ -128,6 +128,8 @@ export const notifyBadgeRuleApprovalDecision = async (
       targetStepNumber: input.nextStepNumber,
     }),
   ]);
+
+  if (displayName === null) return;
 
   const hasNextStepNotificationTarget =
     input.nextStepNumber !== undefined && input.nextStepNumber !== null;

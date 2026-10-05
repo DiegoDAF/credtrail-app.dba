@@ -178,5 +178,20 @@ describeDbIntegration("Node trusted auth identity", () => {
     );
     expect(consumed.status).toBe(302);
     expect(consumed.headers.get("set-cookie")).toContain("Secure");
+    await fixture.db
+      .prepare("UPDATE tenants SET display_name = ? WHERE id = ?")
+      .bind(" ", fixture.tenantId)
+      .run();
+    const missingName = await app.request(
+      "https://badges.example.edu/v1/auth/magic-link/request",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: user.email, tenantId: fixture.tenantId }),
+      },
+      { ...env, REQUEST_CLIENT_IP: peer },
+    );
+    expect(missingName.status).toBe(202);
+    expect(relay.messages).toHaveLength(1);
   });
 });

@@ -1,3 +1,6 @@
+import { createFixtureRule } from "../../../../packages/db/src/badge-issuance-rule-test-fixtures";
+import { processBadgeRuleLifecycleForTenant } from "../badges/badge-rule-lifecycle-processor";
+import { createRecordingEmailBinding } from "../test-support/recording-email";
 import { afterEach, expect, it } from "vitest";
 import {
   cleanupTestResources,
@@ -38,7 +41,6 @@ describeDbIntegration("shared transactional email delivery", () => {
     const emailBinding = createNodeEmail(relay.env).binding;
     const common = {
       emailBinding,
-      tenantId: fixture.tenantId,
       tenantDisplayName: "Example University",
       recipientEmail: "learner@example.edu",
     };
@@ -52,6 +54,7 @@ describeDbIntegration("shared transactional email delivery", () => {
     await sendMemberInviteEmailNotification({ ...common, role: "issuer", signInUrl: url });
     const approval = {
       ...common,
+      tenantId: fixture.tenantId,
       ruleName: "Graduation",
       versionNumber: 1,
       reviewUrl: "https://badges.example.edu/review",
@@ -64,6 +67,7 @@ describeDbIntegration("shared transactional email delivery", () => {
     });
     await sendBadgeRuleLifecycleReminderNotifications(fixture.db, {
       ...approval,
+      tenantId: fixture.tenantId,
       dueAt: "2026-10-06",
       reminderType: "expiry",
       adminUrl: approval.reviewUrl,
@@ -71,7 +75,6 @@ describeDbIntegration("shared transactional email delivery", () => {
     await sendIssuanceEmailNotification({
       ...common,
       badgeTitle: "Graduation",
-      assertionId: "internal-assertion",
       issuedAtIso: "2026-10-05",
       publicBadgeUrl: "https://badges.example.edu/badges/123",
       verificationUrl: "https://badges.example.edu/badges/123/verification",
@@ -94,8 +97,53 @@ describeDbIntegration("shared transactional email delivery", () => {
     }
     expect(relay.messages.at(-1)?.recipients).toContain("records@example.edu");
     expect(relay.messages.at(-1)?.mail.html).not.toContain("disposable-private-token");
-    expect(relay.messages.at(-1)?.mail.text).not.toContain("internal-assertion");
     expect(relay.messages[0]?.mail.html).toContain(url);
     expect(relay.messages[0]?.mail.text).toContain(url);
+  });
+  it("keeps lifecycle reminders pending until the institution has a display name", async () => {
+    const fixture = await createBadgeRuleIntegrationFixture();
+    tenantIds.push(fixture.tenantId);
+    userIds.push(fixture.userId);
+    const created = await createFixtureRule(fixture);
+    await fixture.db
+      .prepare(
+        "UPDATE badge_issuance_rule_versions SET status = 'active', expires_at = ? WHERE id = ?",
+      )
+      .bind("2026-10-07T12:00:00Z", created.version.id)
+      .run();
+    await fixture.db
+      .prepare("UPDATE tenants SET display_name = ? WHERE id = ?")
+      .bind(" ", fixture.tenantId)
+      .run();
+    const { emailBinding, messages } = createRecordingEmailBinding();
+    const input = {
+      db: fixture.db,
+      tenantId: fixture.tenantId,
+      nowIso: "2026-10-05T12:00:00Z",
+      observability: { service: "api-worker", environment: "test" },
+      env: {
+        APP_ENV: "test",
+        PLATFORM_DOMAIN: "badges.example.edu",
+        PUBLIC_APP_ORIGIN: "https://badges.example.edu",
+        EMAIL: emailBinding,
+        BADGE_OBJECTS: {
+          head: async () => null,
+          get: async () => null,
+          put: async () => null,
+          delete: async () => undefined,
+        },
+      },
+      adminUrlForTenant: () => "https://badges.example.edu/admin/rules",
+    };
+    expect((await processBadgeRuleLifecycleForTenant(input)).expiryRemindersSent).toBe(0);
+    expect(messages).toHaveLength(0);
+    await fixture.db
+      .prepare("UPDATE tenants SET display_name = ? WHERE id = ?")
+      .bind("Example University", fixture.tenantId)
+      .run();
+    expect((await processBadgeRuleLifecycleForTenant(input)).expiryRemindersSent).toBe(1);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.html).toContain("Example University");
+    expect(messages[0]?.text).not.toContain(fixture.tenantId);
   });
 });

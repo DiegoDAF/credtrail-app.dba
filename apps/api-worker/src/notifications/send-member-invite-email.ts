@@ -5,7 +5,6 @@ export interface SendMemberInviteEmailNotificationInput {
   fromEmail?: string | undefined;
   fromName?: string | undefined;
   recipientEmail: string;
-  tenantId: string;
   tenantDisplayName: string;
   role: string;
   signInUrl: string;
@@ -28,7 +27,6 @@ export const sendMemberInviteEmailNotification = async (
       paragraphs: ["Sign in with your institution account to get started."],
       details: [{ label: "Your role", value: input.role }],
       action: { label: "Sign in", url: input.signInUrl },
-      secondaryActions: [],
       footer: "Contact your institution administrator if you have questions about your access.",
     },
     category: "Tenant Member Invite",

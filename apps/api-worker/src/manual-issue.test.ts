@@ -887,7 +887,7 @@ describe("POST /v1/tenants/:tenantId/assertions/manual-issue", () => {
     expect(mockedSendIssuanceEmailNotification).toHaveBeenCalledWith(
       expect.objectContaining({
         recipientEmail: "student@umich.edu",
-        tenantId: "tenant_123",
+        tenantDisplayName: "Tenant 123",
       }),
     );
   });
