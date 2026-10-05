@@ -411,6 +411,7 @@ const syncRuleBuilderSummary = (statusOverride) => {
 
 const syncDefinitionJsonFromBuilder = (options) => {
   const exitJsonOnlyMode = options && options.exitJsonOnlyMode === true;
+  const previousDefinitionJson = ruleBuilderDefinitionJson.value;
 
   if (exitJsonOnlyMode) {
     ruleBuilderDefinitionAuthority = "visual";
@@ -426,6 +427,7 @@ const syncDefinitionJsonFromBuilder = (options) => {
       ruleBuilderDefinitionJson.value = JSON.stringify(definition, null, 2);
       syncRuleBuilderPresetFromDefinition(definition);
     } catch {
+      ruleBuilderLastTestSummary = "Not run";
       // Ignore transient editing errors while user updates fields.
     }
   } else if (ruleBuilderDefinitionAuthority === "json_applied") {
@@ -435,11 +437,15 @@ const syncDefinitionJsonFromBuilder = (options) => {
       ruleBuilderDefinitionJson.value = JSON.stringify(definitionWithCurrentOptions, null, 2);
       syncRuleBuilderPresetFromDefinition(definitionWithCurrentOptions);
     } catch {
+      ruleBuilderLastTestSummary = "Not run";
       // Preserve an in-progress JSON edit until it is valid and explicitly applied.
     }
   }
 
-  ruleBuilderLastTestSummary = "Not run";
+  // Background lookups can refresh labels without changing the tested rule.
+  if (ruleBuilderDefinitionJson.value !== previousDefinitionJson) {
+    ruleBuilderLastTestSummary = "Not run";
+  }
   validateConditionCards(true);
   getConditionCards().forEach((card) => {
     updateConditionPlainSummary(card);

@@ -175,6 +175,7 @@ for (const useCustomLabel of [false, true]) {
     const customLabel = useCustomLabel ? `Copied analytics ${crypto.randomUUID().slice(0, 8)}` : "";
     const lmsConnectionId = `lms_rule_copy_${fixtureSuffix}`;
     const mockSakai = await startMockSakai();
+    const courseLookupsReleased = Promise.withResolvers<void>();
     let sourceRuleId: string | undefined;
 
     try {
@@ -229,6 +230,14 @@ for (const useCustomLabel of [false, true]) {
       await unfinishedSave;
       await expect(page).toHaveURL(/\/admin\/rules\/drafts\/.+\/edit$/);
 
+      const courseLookupPath = `/v1/tenants/${tenantId}/lms/connections/${lmsConnectionId}/courses`;
+      await page.route(
+        (url) => url.pathname === courseLookupPath,
+        async (route) => {
+          await courseLookupsReleased.promise;
+          await route.continue();
+        },
+      );
       await page.reload();
       await expect(page.locator("#rule-builder-name")).toHaveValue(customLabel);
       await expect(page.locator(".ct-admin__condition-card")).toHaveCount(2);
@@ -253,7 +262,21 @@ for (const useCustomLabel of [false, true]) {
       await page.getByLabel("Generated example data").check();
       await page.getByRole("button", { name: "Test example data" }).click();
       await expect(page.locator("#rule-builder-test-result")).toContainText("qualifies");
+      // Course labels can finish loading after a successful example test.
+      courseLookupsReleased.resolve();
+      await expect(page.locator("[data-lms-course-select]:disabled")).toHaveCount(0);
       const submitButton = page.getByRole("button", { name: "Create and submit for approval" });
+      await expect(submitButton).toBeEnabled();
+      await page.getByRole("button", { name: /Requirements/ }).click();
+      const restoredScoreField = page
+        .locator(".ct-admin__condition-card")
+        .nth(1)
+        .locator('[data-field="minScore"]');
+      await restoredScoreField.fill("89");
+      await expect(page.locator("#rule-builder-submit")).toBeDisabled();
+      await restoredScoreField.fill("88");
+      await expect(page.locator("#rule-builder-submit")).toBeDisabled();
+      await page.getByRole("button", { name: "Continue to Test and submit" }).click();
       await expect(submitButton).toBeEnabled();
       const createResponse = page.waitForResponse((response) => {
         return (
@@ -294,6 +317,7 @@ for (const useCustomLabel of [false, true]) {
         unchangedSourceRow.getByRole("link", { name: sourceRuleName, exact: true }),
       ).toHaveAttribute("href", sourceDetailHref ?? "");
     } finally {
+      courseLookupsReleased.resolve();
       await cleanupCopiedRule({ lmsConnectionId, sourceRuleId });
       await mockSakai.close();
     }
