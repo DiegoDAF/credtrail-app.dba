@@ -1,3 +1,4 @@
+import { DEFAULT_EMAIL_THEME, type EmailTheme } from "./email-theme";
 import {
   transactionalEmailContentSchema,
   type TransactionalEmailContent,
@@ -8,8 +9,16 @@ export interface RenderedTransactionalEmail {
   readonly html: string;
 }
 
+export interface RenderTransactionalEmailOptions {
+  /** Issuer colors and logo; the built-in CredTrail palette when absent. */
+  readonly theme?: EmailTheme | undefined;
+  /** Brand label above the heading, normally the sender name. */
+  readonly brand?: string | undefined;
+}
+
 export const renderTransactionalEmail = async (
   input: TransactionalEmailContent,
+  options: RenderTransactionalEmailOptions = {},
 ): Promise<RenderedTransactionalEmail> => {
   const parsed = transactionalEmailContentSchema.safeParse(input);
   if (!parsed.success) {
@@ -17,6 +26,10 @@ export const renderTransactionalEmail = async (
     throw new Error("Transactional email content is invalid");
   }
   const content = parsed.data;
+  const theme = options.theme ?? DEFAULT_EMAIL_THEME;
+  const brand = options.brand?.trim() || "CredTrail";
+  // The hero artwork takes the logo's place so the card never stacks two images.
+  const logoUrl = content.image === undefined ? theme.logoUrl : undefined;
   const text = [
     content.institution,
     content.title,
@@ -64,9 +77,51 @@ export const renderTransactionalEmail = async (
                 >
                   <tbody>
                     <tr>
-                      <td style={{ padding: "28px 24px", borderTop: "4px solid #0f5fa6" }}>
-                        <p style={{ margin: "0 0 8px", color: "#0f5fa6", fontWeight: "bold" }}>
-                          CredTrail
+                      <td
+                        style={{
+                          padding: "28px 24px",
+                          borderTop: `4px solid ${theme.headerColor}`,
+                        }}
+                      >
+                        {logoUrl === undefined ? null : (
+                          <img
+                            src={logoUrl}
+                            width="180"
+                            height="180"
+                            alt=""
+                            style={{
+                              display: "block",
+                              margin: "0 auto 16px",
+                              width: "180px",
+                              height: "180px",
+                              border: "0",
+                            }}
+                          />
+                        )}
+                        {content.image === undefined ? null : (
+                          <img
+                            src={content.image.url}
+                            width="128"
+                            height="128"
+                            alt={content.image.alt}
+                            style={{
+                              display: "block",
+                              margin: "0 auto 16px",
+                              width: "128px",
+                              height: "128px",
+                              border: "0",
+                            }}
+                          />
+                        )}
+                        <p
+                          style={{
+                            margin: "0 0 8px",
+                            color: theme.highlightColor,
+                            fontWeight: "bold",
+                            overflowWrap: "anywhere",
+                          }}
+                        >
+                          {brand}
                         </p>
                         <p style={{ margin: "0 0 24px", overflowWrap: "anywhere" }}>
                           {content.institution}
@@ -111,7 +166,7 @@ export const renderTransactionalEmail = async (
                             href={content.action.url}
                             style={{
                               display: "inline-block",
-                              backgroundColor: "#0f5fa6",
+                              backgroundColor: theme.accentColor,
                               color: "#ffffff",
                               padding: "12px 20px",
                               textDecoration: "none",
@@ -123,7 +178,7 @@ export const renderTransactionalEmail = async (
                         </p>
                         {content.secondaryActions.map((action) => (
                           <p style={{ margin: "0 0 12px" }}>
-                            <a href={action.url} style={{ color: "#0f5fa6" }}>
+                            <a href={action.url} style={{ color: theme.accentColor }}>
                               {action.label}
                             </a>
                           </p>
@@ -132,7 +187,7 @@ export const renderTransactionalEmail = async (
                           You can also copy this link into your browser:
                         </p>
                         <p style={{ fontSize: "14px", margin: "0", wordBreak: "break-all" }}>
-                          <a href={content.action.url} style={{ color: "#0f5fa6" }}>
+                          <a href={content.action.url} style={{ color: theme.accentColor }}>
                             {content.action.url}
                           </a>
                         </p>

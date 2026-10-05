@@ -23,6 +23,7 @@ import {
 } from "@credtrail/db";
 import type { AppBindings } from "../app/types";
 import { sendBadgeRuleLifecycleReminderNotifications } from "../notifications/send-badge-rule-lifecycle-email";
+import { emailThemeFromBindings } from "../notifications/email-theme";
 import { mapConcurrentBounded } from "../utils/map-concurrent-bounded";
 import { planAutomatedBadgeRuleLifecycle } from "./automated-badge-rule-schedule";
 
@@ -88,6 +89,7 @@ const notifyLifecycleReminder = async (
       emailBinding: input.env.EMAIL,
       fromEmail: input.env.TRANSACTIONAL_EMAIL_FROM_ADDRESS,
       fromName: input.env.TRANSACTIONAL_EMAIL_FROM_NAME,
+      theme: emailThemeFromBindings(input.env),
       tenantId: input.tenantId,
       tenantDisplayName: tenant.displayName,
       ruleName: badgeRuleVersionDisplayFields(input.version, rule ?? { customLabel: null })

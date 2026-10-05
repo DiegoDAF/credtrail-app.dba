@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { DEFAULT_EMAIL_THEME } from "./email-theme";
 import type { TransactionalEmailContent } from "./transactional-email-content";
 import { renderTransactionalEmail } from "./transactional-email-renderer";
 
@@ -66,4 +67,48 @@ it("defaults optional document lists without changing its action", async () => {
   expect(result.text).toContain(content.action.url);
   expect(result.html).toContain("View your badge");
   expect(result.html).not.toContain("<dl");
+});
+
+it("renders the built-in palette and brand without a theme", async () => {
+  const result = await renderTransactionalEmail(content);
+  expect(result.html).toContain("#0f5fa6");
+  expect(result.html).toContain(">CredTrail<");
+  expect(result.html).not.toContain("<img");
+});
+
+it("applies issuer colors, logo and brand from the theme", async () => {
+  const result = await renderTransactionalEmail(content, {
+    theme: {
+      headerColor: "#102030",
+      accentColor: "#2e7d32",
+      highlightColor: "#5f5f5f",
+      logoUrl: "https://badges.example.edu/logo.png",
+    },
+    brand: "Example Badges",
+  });
+  expect(result.html).toContain("4px solid #102030");
+  expect(result.html).toContain("background-color:#2e7d32");
+  expect(result.html).toContain("color:#5f5f5f");
+  expect(result.html).toContain('src="https://badges.example.edu/logo.png"');
+  expect(result.html).toContain(">Example Badges<");
+  expect(result.html).not.toContain("#0f5fa6");
+  expect(result.html).not.toContain(">CredTrail<");
+  expect(result.html).toContain("Sent with CredTrail.");
+});
+
+it("shows the hero image instead of the logo and rejects unsafe image URLs", async () => {
+  const theme = {
+    ...DEFAULT_EMAIL_THEME,
+    logoUrl: "https://badges.example.edu/logo.png",
+  };
+  const result = await renderTransactionalEmail(
+    { ...content, image: { url: "https://badges.example.edu/badges/123/image", alt: "Badge" } },
+    { theme },
+  );
+  expect(result.html).toContain('src="https://badges.example.edu/badges/123/image"');
+  expect(result.html).toContain('alt="Badge"');
+  expect(result.html).not.toContain("logo.png");
+  await expect(
+    renderTransactionalEmail({ ...content, image: { url: "javascript:alert(1)", alt: "" } }),
+  ).rejects.toThrow("Transactional email content is invalid");
 });

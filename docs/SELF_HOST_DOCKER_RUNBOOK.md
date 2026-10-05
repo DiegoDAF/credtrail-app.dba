@@ -39,6 +39,7 @@ Optional:
 - `AWS_SES_CONFIGURATION_SET`
 - `TRANSACTIONAL_EMAIL_FROM_NAME` (defaults to `CredTrail`)
 - `TRANSACTIONAL_EMAIL_REPLY_TO` (optional reply mailbox)
+- `EMAIL_THEME_HEADER_COLOR`, `EMAIL_THEME_ACCENT_COLOR`, `EMAIL_THEME_HIGHLIGHT_COLOR`, `EMAIL_LOGO_URL` (optional issuer look)
 - `ISSUANCE_EMAIL_BCC` (optional comma-separated badge notification copies; see below)
 - SMTP connection and secret settings (see **Configure SMTP**)
 
@@ -217,6 +218,11 @@ the deployment.
 Choose `EMAIL_PROVIDER=smtp` to use your mail service, or `EMAIL_PROVIDER=ses` to use the Amazon
 Simple Email Service (SES) API. Email stays disabled when the provider is omitted or set to `none`.
 Both providers support an optional `TRANSACTIONAL_EMAIL_REPLY_TO` mailbox.
+
+Every transactional email can carry the issuer look instead of the built-in CredTrail palette: set
+`EMAIL_THEME_HEADER_COLOR`, `EMAIL_THEME_ACCENT_COLOR` and `EMAIL_THEME_HIGHLIGHT_COLOR` to hex colors and
+`EMAIL_LOGO_URL` to an absolute `https://` image. Invalid values fall back to the defaults, and the brand label
+above the heading is `TRANSACTIONAL_EMAIL_FROM_NAME`.
 
 #### Configure SMTP
 

@@ -1,9 +1,11 @@
+import type { EmailTheme } from "./email-theme";
 import { sendTransactionalEmail } from "./transactional-email";
 
 export interface SendMagicLinkEmailNotificationInput {
   emailBinding?: SendEmail | undefined;
   fromEmail?: string | undefined;
   fromName?: string | undefined;
+  theme?: EmailTheme | undefined;
   recipientEmail: string;
   tenantDisplayName: string;
   magicLinkUrl: string;
@@ -69,6 +71,7 @@ export const sendMagicLinkEmailNotification = async (
     emailBinding: input.emailBinding,
     fromEmail: input.fromEmail,
     fromName: input.fromName,
+    theme: input.theme,
     recipientEmail: input.recipientEmail,
     subject,
     content: {

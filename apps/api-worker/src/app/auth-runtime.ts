@@ -29,6 +29,7 @@ import { buildLoginPath } from "../auth/login-path";
 import { normalizeSafeRedirectPath } from "../auth/redirect-paths";
 import { canonicalAppUrl } from "../http/canonical-app-url";
 import { sendMagicLinkEmailNotification } from "../notifications/send-magic-link-email";
+import { emailThemeFromBindings } from "../notifications/email-theme";
 import { sendMemberInviteEmailNotification } from "../notifications/send-member-invite-email";
 import { sendPasswordResetEmailNotification } from "../notifications/send-password-reset-email";
 import { addSecondsToIso, sessionCookieSecure } from "../utils/crypto";
@@ -435,6 +436,7 @@ export const betterAuthProvider = createBetterAuthProvider<AppContext, AppBindin
             emailBinding: context.env.EMAIL,
             fromEmail: context.env.TRANSACTIONAL_EMAIL_FROM_ADDRESS,
             fromName: context.env.TRANSACTIONAL_EMAIL_FROM_NAME,
+            theme: emailThemeFromBindings(context.env),
             recipientEmail: email,
             tenantDisplayName: institution,
             magicLinkUrl: debugMagicLinkUrl,
@@ -456,6 +458,7 @@ export const betterAuthProvider = createBetterAuthProvider<AppContext, AppBindin
           emailBinding: context.env.EMAIL,
           fromEmail: context.env.TRANSACTIONAL_EMAIL_FROM_ADDRESS,
           fromName: context.env.TRANSACTIONAL_EMAIL_FROM_NAME,
+          theme: emailThemeFromBindings(context.env),
           recipientEmail: email,
           tenantDisplayName: institution,
           resetUrl: url,
@@ -648,6 +651,7 @@ export const requestTenantMemberInvite = async (
         emailBinding: context.env.EMAIL,
         fromEmail: context.env.TRANSACTIONAL_EMAIL_FROM_ADDRESS,
         fromName: context.env.TRANSACTIONAL_EMAIL_FROM_NAME,
+        theme: emailThemeFromBindings(context.env),
         recipientEmail: input.email,
         tenantDisplayName: tenant.displayName,
         role: input.role,
