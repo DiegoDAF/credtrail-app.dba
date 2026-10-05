@@ -10,6 +10,7 @@ import {
   cleanupTestResources,
   createBadgeRuleIntegrationFixture,
   describeDbIntegration,
+  deleteTestTenant,
   requireTestDatabaseUrl,
   seedAssertion,
 } from "../../../../packages/db/src/postgres-test-support";
@@ -184,6 +185,42 @@ describeDbIntegration("institution sharing through the application", () => {
         userIds: [f.userId, other.userId],
         betterAuthUserIds: authIds,
       });
+    }
+  });
+
+  it("returns the standard badge 404 if the institution disappears after the badge lookup", async () => {
+    const f = await createBadgeRuleIntegrationFixture();
+    const publicId = crypto.randomUUID();
+    const env = bindings();
+    await seedAssertion(f.db, {
+      tenantId: f.tenantId,
+      badgeTemplateId: f.badgeTemplateId,
+      publicId,
+      recipientIdentity: "learner@example.edu",
+      issuedAt: "2026-02-01T00:00:00Z",
+    });
+    const credential = JSON.stringify({ issuer: { name: "Example University" } });
+    // The storage read follows the assertion lookup. Delete its institution at
+    // this real seam to exercise the concurrent-deletion response, not a mock.
+    env.BADGE_OBJECTS = {
+      ...env.BADGE_OBJECTS,
+      get: async () => {
+        await deleteTestTenant(f.db, f.tenantId);
+        return { size: credential.length, text: async () => credential };
+      },
+    };
+    try {
+      const response = await app.request(
+        `${origin}/badges/${publicId}/share/linkedin-profile`,
+        {},
+        env,
+      );
+      expect(response.status).toBe(404);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(response.headers.has("location")).toBe(false);
+      expect(await response.text()).toContain("Badge not found");
+    } finally {
+      await cleanupTestResources(f.db, { tenantIds: [f.tenantId], userIds: [f.userId] });
     }
   });
 

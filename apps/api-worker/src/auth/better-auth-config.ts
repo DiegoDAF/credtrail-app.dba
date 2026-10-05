@@ -2,7 +2,13 @@ import { canonicalAppOrigin } from "../http/canonical-app-url";
 
 export const BETTER_AUTH_AUTH_SYSTEM = "better_auth";
 export const BETTER_AUTH_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
+/** Base cookie name supplied to Better Auth; HTTPS adds its secure prefix. */
 export const BETTER_AUTH_SESSION_COOKIE_NAME = "better-auth.session_token";
+/** Browser session cookie names emitted by the supported runtime profiles. */
+export const BETTER_AUTH_SESSION_COOKIE_NAMES = [
+  BETTER_AUTH_SESSION_COOKIE_NAME,
+  `__Secure-${BETTER_AUTH_SESSION_COOKIE_NAME}`,
+] as const;
 const BETTER_AUTH_SCHEMA = "auth";
 
 export interface BetterAuthRuntimeBindings {

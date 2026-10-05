@@ -1,4 +1,4 @@
-import { BETTER_AUTH_SESSION_COOKIE_NAME } from "../auth/better-auth-config";
+import { BETTER_AUTH_SESSION_COOKIE_NAMES } from "../auth/better-auth-config";
 import { LTI_LAUNCH_PATH, LTI_OIDC_LOGIN_PATH } from "../lti/constants";
 
 const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -46,8 +46,7 @@ export const validateCsrfRequestOrigin = (input: ValidateCsrfRequestOriginInput)
   }
 
   if (
-    !cookieHeaderContains(input.cookieHeader, BETTER_AUTH_SESSION_COOKIE_NAME) &&
-    !cookieHeaderContains(input.cookieHeader, `__Secure-${BETTER_AUTH_SESSION_COOKIE_NAME}`)
+    !BETTER_AUTH_SESSION_COOKIE_NAMES.some((name) => cookieHeaderContains(input.cookieHeader, name))
   ) {
     return true;
   }

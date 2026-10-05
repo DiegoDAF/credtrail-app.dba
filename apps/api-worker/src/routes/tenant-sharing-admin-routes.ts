@@ -39,8 +39,7 @@ export const registerTenantSharingAdminRoutes = (input: {
     const actor = await input.resolveInstitutionAdminAdminRole(c, tenantId, nextPath);
     if (actor instanceof Response) return actor;
     const db = input.resolveDatabase(c.env);
-    const tenant = await findTenantById(db, tenantId);
-    if (tenant === null) return c.text("Institution not found.", 404);
+    let validationError: { readonly submittedValue: string; readonly error: string } | undefined;
     if (c.req.method === "POST") {
       const raw = Object.fromEntries(await c.req.formData());
       const parsed = updateTenantLinkedInSettingsRequestSchema.safeParse(raw);
@@ -63,38 +62,33 @@ export const registerTenantSharingAdminRoutes = (input: {
         });
         return c.redirect(nextPath, 303);
       }
-      const settings = await findTenantLinkedInSettings(db, tenantId);
-      if (settings === null) return c.text("Institution not found.", 404);
-      return renderAppPage(
-        c,
-        institutionAdminSharingPage({
-          tenant,
-          membershipRole: actor.membershipRole,
-          userId: actor.principal.userId,
-          organizationId: settings.organizationId,
-          submittedValue: typeof raw.organizationId === "string" ? raw.organizationId : "",
-          error: "Enter the numeric LinkedIn organization ID, or leave it blank.",
-          flash: null,
-        }),
-        400,
-      );
+      validationError = {
+        submittedValue: typeof raw.organizationId === "string" ? raw.organizationId : "",
+        error: "Enter the numeric LinkedIn organization ID, or leave it blank.",
+      };
     }
+    const tenant = await findTenantById(db, tenantId);
+    if (tenant === null) return c.text("Institution not found.", 404);
     const settings = await findTenantLinkedInSettings(db, tenantId);
-    if (settings === null) return c.text("Institution not found.", 404);
-    const flash = await consumeAdminListMessageFlash(c, {
-      tenantId,
-      userId: actor.principal.userId,
-      workspace: "credential_sharing",
-    });
+    const flash =
+      validationError === undefined
+        ? await consumeAdminListMessageFlash(c, {
+            tenantId,
+            userId: actor.principal.userId,
+            workspace: "credential_sharing",
+          })
+        : null;
     return renderAppPage(
       c,
       institutionAdminSharingPage({
         tenant,
         userId: actor.principal.userId,
         membershipRole: actor.membershipRole,
-        organizationId: settings.organizationId,
+        organizationId: settings?.organizationId ?? null,
+        ...validationError,
         flash,
       }),
+      validationError === undefined ? 200 : 400,
     );
   });
 };

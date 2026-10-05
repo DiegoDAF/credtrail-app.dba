@@ -15,7 +15,7 @@ import {
   resolveAssertionLifecycleState,
   type SqlDatabase,
 } from "@credtrail/db";
-import { parseTenantPathParams } from "@credtrail/validation";
+import { parseTenantPathParams, type LinkedInOrganizationId } from "@credtrail/validation";
 import type { Hono } from "hono";
 import type { AppContext, AppEnv } from "../app/types";
 import type { ResolveDatabase } from "../app/route-deps";
@@ -241,12 +241,12 @@ export const registerPublicBadgeRoutes = <PublicBadgeValue extends PublicBadgeRo
     });
   };
 
-  const shareRedirectUrlForChannel = async (
-    db: SqlDatabase,
+  const shareRedirectUrlForChannel = (
     requestUrl: string,
     value: PublicBadgeValue,
     channel: string,
-  ): Promise<string | null> => {
+    organizationId: LinkedInOrganizationId | null,
+  ): string | null => {
     const publicBadgePath = `/badges/${encodeURIComponent(value.assertion.publicId)}`;
     const publicBadgeUrl = new URL(publicBadgePath, requestUrl).toString();
 
@@ -257,10 +257,8 @@ export const registerPublicBadgeRoutes = <PublicBadgeValue extends PublicBadgeRo
     }
 
     if (channel === "linkedin-profile") {
-      const settings = await findTenantLinkedInSettings(db, value.assertion.tenantId);
-      if (settings === null) throw new Error("Issuing institution not found");
       return linkedInAddToProfileUrl({
-        organizationId: settings.organizationId,
+        organizationId,
         badgeName: badgeNameFromCredential(value.credential),
         issuerName: issuerNameFromCredential(value.credential),
         issuedAtIso: value.assertion.issuedAt,
@@ -327,11 +325,20 @@ export const registerPublicBadgeRoutes = <PublicBadgeValue extends PublicBadgeRo
       return renderAppPage(c, publicBadgeNotFoundPage(publicRequestUrl(c)), 404);
     }
 
-    const redirectUrl = await shareRedirectUrlForChannel(
-      db,
+    let organizationId: LinkedInOrganizationId | null = null;
+    if (channel === "linkedin-profile") {
+      const settings = await findTenantLinkedInSettings(db, result.value.assertion.tenantId);
+      if (settings === null) {
+        return renderAppPage(c, publicBadgeNotFoundPage(publicRequestUrl(c)), 404);
+      }
+      organizationId = settings.organizationId;
+    }
+
+    const redirectUrl = shareRedirectUrlForChannel(
       publicRequestUrl(c),
       result.value,
       channel,
+      organizationId,
     );
 
     if (redirectUrl === null) {
