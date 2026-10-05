@@ -1,3 +1,6 @@
+import type { TransactionalEmailContent } from "./transactional-email-content";
+import { renderTransactionalEmail } from "./transactional-email-renderer";
+
 const DEFAULT_FROM_EMAIL = "no-reply@credtrail.org";
 const DEFAULT_FROM_NAME = "CredTrail";
 
@@ -17,7 +20,7 @@ export interface SendTransactionalEmailInput {
   fromName?: string | undefined;
   recipientEmail: string;
   subject: string;
-  text: string;
+  content: TransactionalEmailContent;
   category: string;
 }
 
@@ -26,6 +29,7 @@ export const sendTransactionalEmail = async (input: SendTransactionalEmailInput)
     return;
   }
 
+  const rendered = await renderTransactionalEmail(input.content);
   await input.emailBinding.send({
     from: {
       email: input.fromEmail?.trim() || DEFAULT_FROM_EMAIL,
@@ -33,7 +37,8 @@ export const sendTransactionalEmail = async (input: SendTransactionalEmailInput)
     },
     to: input.recipientEmail,
     subject: input.subject,
-    text: input.text,
+    text: rendered.text,
+    html: rendered.html,
     headers: {
       "X-CredTrail-Email-Category": input.category,
       "X-CredTrail-Email-Kind": input.kind,

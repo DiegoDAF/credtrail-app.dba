@@ -1,33 +1,9 @@
+import { createRecordingEmailBinding } from "../test-support/recording-email";
 import { describe, expect, it } from "vitest";
 import {
   sendBadgeRuleApprovalDecisionEmail,
   sendBadgeRuleApprovalSubmittedEmail,
 } from "./send-badge-rule-approval-email";
-
-interface RecordedEmailMessage {
-  readonly to: string;
-  readonly subject: string;
-  readonly text: string;
-  readonly headers?: Record<string, string>;
-}
-
-const createRecordingEmailBinding = (): {
-  readonly emailBinding: SendEmail;
-  readonly messages: RecordedEmailMessage[];
-} => {
-  const messages: RecordedEmailMessage[] = [];
-
-  return {
-    messages,
-    emailBinding: {
-      send: async (message: RecordedEmailMessage): Promise<{ messageId: string }> => {
-        messages.push(message);
-
-        return { messageId: "email_msg_123" };
-      },
-    } as unknown as SendEmail,
-  };
-};
 
 describe("badge rule approval email notifications", () => {
   it("sends submitted approval email with the review link and category", async () => {

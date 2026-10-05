@@ -103,10 +103,29 @@ describe("SMTP wire delivery", () => {
         emailBinding: email.binding,
         recipientEmail: "learner@example.edu",
         subject: kind,
-        text: "access-link-for-sensitive-messages",
+        content: {
+          institution: "Example University",
+          title: kind,
+          paragraphs: ["access-link-for-sensitive-messages"],
+          details: [],
+          action: {
+            label: "Continue",
+            url: "https://badges.example.edu/access?token=private-disposable-token",
+          },
+          secondaryActions: [],
+          footer: "Keep this link private.",
+        },
         category: "test",
       });
     }
+    expect(
+      relay.messages.every(
+        (message) =>
+          message.mail.text?.includes("Example University") &&
+          typeof message.mail.html === "string" &&
+          message.mail.html.includes("Example University"),
+      ),
+    ).toBe(true);
     expect(relay.messages.map((message) => message.recipients)).toEqual([
       ...Array.from({ length: 5 }, () => ["learner@example.edu"]),
       ["learner@example.edu", "records@example.edu"],

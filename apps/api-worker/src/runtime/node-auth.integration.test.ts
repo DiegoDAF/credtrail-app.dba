@@ -150,6 +150,8 @@ describeDbIntegration("Node trusted auth identity", () => {
     expect(relay.messages).toHaveLength(1);
     expect(relay.messages[0]?.recipients).toEqual([user.email]);
     expect(relay.messages[0]?.secure).toBe(true);
+    expect(relay.messages[0]?.mail.text).toContain("Badge Rule Test Tenant");
+    expect(relay.messages[0]?.mail.html).toContain("Badge Rule Test Tenant");
     const authUser = await fixture.db
       .prepare("SELECT id FROM auth.user WHERE email = ?")
       .bind(user.email)

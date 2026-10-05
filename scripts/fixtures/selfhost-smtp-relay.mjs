@@ -32,6 +32,7 @@ export async function startSmtpRelay(directory) {
             secure: session.secure,
             subject: mail.subject,
             text: mail.text,
+            html: mail.html,
             replyTo: mail.replyTo?.value.map((address) => address.address),
             bcc: mail.headers.has("bcc"),
             kind: mail.headers.get("x-credtrail-email-kind"),

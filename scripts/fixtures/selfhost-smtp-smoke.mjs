@@ -57,6 +57,8 @@ export async function prepareSmtpSmoke({ directory, network, image, docker, poll
         assert.equal(response.status(), 202);
         const mail = (await captures()).find((message) => message.kind === "magic_link");
         assert(mail?.secure);
+        assert(mail.text.includes("Smoke institution"));
+        assert(mail.html.includes("Smoke institution"));
         assert.deepEqual(mail.recipients, ["smoke-owner@example.edu"]);
         assert.deepEqual(mail.replyTo, ["support@example.edu"]);
         const url = mail.text.match(/https:\/\/localhost:[0-9]+[^\s]+/u)?.[0];
@@ -76,7 +78,10 @@ export async function prepareSmtpSmoke({ directory, network, image, docker, poll
         const accepted = (await captures()).find((message) => message.kind === "issuance");
         assert(accepted?.secure && !accepted.bcc);
         assert.deepEqual(accepted.recipients, ["learner@example.edu", "records@example.edu"]);
-        assert(accepted.text.includes(assertionId));
+        assert(accepted.text.includes("Smoke institution"));
+        assert(accepted.html.includes("Smoke institution"));
+        const badgeUrl = accepted.text.match(/https:\/\/localhost:[0-9]+\/badges\/[^\s]+/u)?.[0];
+        assert(badgeUrl && accepted.html.includes(badgeUrl));
         const state = (id) =>
           sql(
             `SELECT metadata_json::json->>'status' FROM audit_logs WHERE target_id='${id}' AND action='assertion.issuance_email' ORDER BY occurred_at DESC LIMIT 1`,

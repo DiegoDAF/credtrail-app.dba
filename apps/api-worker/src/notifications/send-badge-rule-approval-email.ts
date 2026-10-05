@@ -31,15 +31,19 @@ export const sendBadgeRuleApprovalSubmittedEmail = async (
     fromName: input.fromName,
     recipientEmail: input.recipientEmail,
     subject: `Badge rule awaiting approval: ${input.ruleName}`,
-    text: [
-      `A badge rule version is awaiting your approval in ${input.tenantDisplayName}.`,
-      "",
-      `Rule: ${input.ruleName}`,
-      `Version: ${String(input.versionNumber)}`,
-      `Approval step: ${input.stepLabel}`,
-      "",
-      input.reviewUrl,
-    ].join("\n"),
+    content: {
+      institution: input.tenantDisplayName,
+      title: `Approval requested: ${input.ruleName}`,
+      paragraphs: [`A badge rule version is awaiting your approval in ${input.tenantDisplayName}.`],
+      details: [
+        { label: "Rule", value: input.ruleName },
+        { label: "Version", value: String(input.versionNumber) },
+        { label: "Approval step", value: input.stepLabel },
+      ],
+      action: { label: "Review the rule", url: input.reviewUrl },
+      secondaryActions: [],
+      footer: "Review the rule before approving it for issuance.",
+    },
     category: "Badge Rule Approval",
   });
 };
@@ -58,15 +62,21 @@ export const sendBadgeRuleApprovalDecisionEmail = async (
     fromName: input.fromName,
     recipientEmail: input.recipientEmail,
     subject: `Badge rule ${input.decisionLabel.toLowerCase()}: ${input.ruleName}`,
-    text: [
-      `A badge rule version was ${input.decisionLabel.toLowerCase()} in ${input.tenantDisplayName}.`,
-      "",
-      `Rule: ${input.ruleName}`,
-      `Version: ${String(input.versionNumber)}`,
-      ...(input.comment === null ? [] : ["", `Reviewer comment: ${input.comment}`]),
-      "",
-      input.reviewUrl,
-    ].join("\n"),
+    content: {
+      institution: input.tenantDisplayName,
+      title: `Rule ${input.decisionLabel.toLowerCase()}: ${input.ruleName}`,
+      paragraphs: [
+        `A badge rule version was ${input.decisionLabel.toLowerCase()} in ${input.tenantDisplayName}.`,
+      ],
+      details: [
+        { label: "Rule", value: input.ruleName },
+        { label: "Version", value: String(input.versionNumber) },
+        ...(input.comment === null ? [] : [{ label: "Reviewer comment", value: input.comment }]),
+      ],
+      action: { label: "View the rule", url: input.reviewUrl },
+      secondaryActions: [],
+      footer: "Open the rule to see the decision and any next steps.",
+    },
     category: "Badge Rule Approval",
   });
 };

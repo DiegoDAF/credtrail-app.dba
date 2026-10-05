@@ -429,6 +429,10 @@ export const betterAuthProvider = createBetterAuthProvider<AppContext, AppBindin
             fromName: context.env.TRANSACTIONAL_EMAIL_FROM_NAME,
             recipientEmail: email,
             ...(input.tenantId === undefined ? {} : { tenantId: input.tenantId }),
+            tenantDisplayName:
+              input.tenantId === undefined
+                ? undefined
+                : (await findTenantById(resolveDatabase(context.env), input.tenantId))?.displayName,
             magicLinkUrl: debugMagicLinkUrl,
             expiresAtIso: expiresAt,
             preferredLocale: input.preferredLocale,
@@ -450,6 +454,8 @@ export const betterAuthProvider = createBetterAuthProvider<AppContext, AppBindin
           fromName: context.env.TRANSACTIONAL_EMAIL_FROM_NAME,
           recipientEmail: email,
           tenantId: input.tenantId,
+          tenantDisplayName: (await findTenantById(resolveDatabase(context.env), input.tenantId))
+            ?.displayName,
           resetUrl: url,
         });
       },

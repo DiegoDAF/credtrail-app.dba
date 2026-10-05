@@ -277,6 +277,13 @@ those recipients are authorized to receive all of that learner information. Copi
 by default. Sign-in links, password resets, invitations, governance messages, and operator test
 messages never receive automatic BCC. Recipient-facing email headers do not reveal BCC addresses.
 
+Transactional notifications include HTML and a plain-text alternative. Sign-in links, password
+resets, member invitations, badge issuance, rule approvals, and lifecycle reminders share one
+built-in CredTrail design. Institution-scoped messages use the institution name automatically;
+unscoped sign-in messages use CredTrail. No template settings or additional dependencies are
+required. The layout uses text and inline styles, so its content remains available when images
+are blocked. This design is the same for SMTP, SES, and the Cloudflare email binding.
+
 #### Check SMTP from the image
 
 Run this command from the app repository to check the connection, certificate, and authentication:

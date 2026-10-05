@@ -627,6 +627,7 @@ export const createIssueBadgeForTenant = <
           fromName: context.env.TRANSACTIONAL_EMAIL_FROM_NAME,
           recipientEmail: request.recipientIdentity.trim().toLowerCase(),
           badgeTitle: achievement.title,
+          tenantDisplayName: options?.issuerName ?? tenant.displayName,
           assertionId,
           tenantId,
           issuedAtIso: issuedAt,

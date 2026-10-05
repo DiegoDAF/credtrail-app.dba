@@ -5,6 +5,7 @@ export interface SendMagicLinkEmailNotificationInput {
   fromEmail?: string | undefined;
   fromName?: string | undefined;
   recipientEmail: string;
+  tenantDisplayName?: string | undefined;
   tenantId?: string | undefined;
   magicLinkUrl: string;
   expiresAtIso: string;
@@ -57,24 +58,13 @@ export const formatMagicLinkExpiry = (input: {
 export const sendMagicLinkEmailNotification = async (
   input: SendMagicLinkEmailNotificationInput,
 ): Promise<void> => {
-  const subject =
-    input.tenantId === undefined
-      ? "Sign in to CredTrail"
-      : `Sign in to CredTrail (${input.tenantId})`;
+  const institution = input.tenantDisplayName?.trim() || "CredTrail";
+  const subject = `Sign in to ${institution}`;
   const formattedExpiresAt = formatMagicLinkExpiry({
     expiresAtIso: input.expiresAtIso,
     preferredLocale: input.preferredLocale,
     preferredTimeZone: input.preferredTimeZone,
   });
-  const textBody = [
-    "Use the link below to sign in to CredTrail:",
-    "",
-    input.magicLinkUrl,
-    "",
-    ...(input.tenantId === undefined ? [] : [`Organization: ${input.tenantId}`]),
-    `Expires: ${formattedExpiresAt}`,
-  ].join("\n");
-
   await sendTransactionalEmail({
     kind: "magic_link",
     emailBinding: input.emailBinding,
@@ -82,7 +72,15 @@ export const sendMagicLinkEmailNotification = async (
     fromName: input.fromName,
     recipientEmail: input.recipientEmail,
     subject,
-    text: textBody,
+    content: {
+      institution,
+      title: subject,
+      paragraphs: ["Use this link to sign in. You can use it once."],
+      details: [{ label: "Link expires", value: formattedExpiresAt }],
+      action: { label: "Sign in", url: input.magicLinkUrl },
+      secondaryActions: [],
+      footer: "If you did not request this link, you can ignore this email.",
+    },
     category: "Auth Magic Link",
   });
 };

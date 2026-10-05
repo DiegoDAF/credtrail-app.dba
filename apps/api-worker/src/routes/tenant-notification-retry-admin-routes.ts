@@ -1,5 +1,5 @@
 import { badgeRecordsReturnHref } from "../admin/learner-record-link";
-import { findAssertionById, findBadgeTemplateById } from "@credtrail/db";
+import { findAssertionById, findBadgeTemplateById, findTenantById } from "@credtrail/db";
 import { parseTenantPathParams, parseAssertionPathParams } from "@credtrail/validation";
 import { z } from "zod";
 import { issuanceReceiptPath } from "../admin/issuance-receipt-page";
@@ -73,6 +73,8 @@ export const registerTenantNotificationRetryAdminRoutes = (
           "Email notifications are unavailable. Share the public badge link with the learner.",
           "error",
         );
+      const tenant = await findTenantById(db, tenantId);
+      if (tenant === null) return c.text("Institution not found.", 404);
       const badgePath = publicBadgePathForAssertion(assertion);
       const result = await retryFailedIssuanceEmail({
         db,
@@ -87,6 +89,7 @@ export const registerTenantNotificationRetryAdminRoutes = (
             fromName: c.env.TRANSACTIONAL_EMAIL_FROM_NAME,
             recipientEmail: assertion.recipientIdentity,
             badgeTitle: assertion.achievementSnapshot.title,
+            tenantDisplayName: tenant.displayName,
             assertionId,
             tenantId,
             issuedAtIso: assertion.issuedAt,

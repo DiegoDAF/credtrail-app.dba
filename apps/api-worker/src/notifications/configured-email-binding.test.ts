@@ -59,6 +59,11 @@ it("applies the same reply and copy policy to real notification builders through
     credentialDownloadUrl: "https://badges.example.edu/credential",
   });
   expect(commands).toHaveLength(5);
+  expect(
+    commands.every((command) =>
+      command.input.Content?.Simple?.Body?.Html?.Data?.startsWith("<!DOCTYPE html>"),
+    ),
+  ).toBe(true);
   expect(commands.map((command) => command.input.ReplyToAddresses)).toEqual(
     Array.from({ length: 5 }, () => ["support@example.edu"]),
   );
