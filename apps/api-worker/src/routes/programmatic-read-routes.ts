@@ -9,6 +9,10 @@ import {
 } from "@credtrail/db";
 import {
   resolveManagedBadgeTemplateImageReference,
+  programmaticAssertionSchema,
+  programmaticTemplateSchema,
+  programmaticAssertionPageSchema,
+  programmaticTemplatePageSchema,
   programmaticAssertionParamsSchema,
   programmaticAssertionQuerySchema,
   programmaticOperationParamsSchema,
@@ -40,16 +44,17 @@ interface RegisterProgrammaticReadRoutesInput {
   readonly sha256Hex: (value: string) => Promise<string>;
 }
 
-const assertionResponse = (origin: string, row: ProgrammaticAssertionRecord) => ({
-  assertionId: row.assertionId,
-  badgeTemplateId: row.badgeTemplateId,
-  recipientIdentity: row.recipientIdentity,
-  recipientIdentityType: row.recipientIdentityType,
-  issuedAt: row.issuedAt,
-  validUntil: row.validUntil,
-  state: row.state,
-  ...programmaticBadgeLinks(origin, row.publicId),
-});
+const assertionResponse = (origin: string, row: ProgrammaticAssertionRecord) =>
+  programmaticAssertionSchema.parse({
+    assertionId: row.assertionId,
+    badgeTemplateId: row.badgeTemplateId,
+    recipientIdentity: row.recipientIdentity,
+    recipientIdentityType: row.recipientIdentityType,
+    issuedAt: row.issuedAt,
+    validUntil: row.validUntil,
+    state: row.state,
+    ...programmaticBadgeLinks(origin, row.publicId),
+  });
 
 const templateResponse = (
   publicOrigin: string,
@@ -57,21 +62,21 @@ const templateResponse = (
   row: ProgrammaticTemplateRecord,
 ) => {
   const image =
-    row.imageUrl === null
+    row.imageUri === null
       ? null
       : resolveManagedBadgeTemplateImageReference({
           tenantId,
           badgeTemplateId: row.badgeTemplateId,
-          imageUri: row.imageUrl,
+          imageUri: row.imageUri,
         });
-  return {
+  return programmaticTemplateSchema.parse({
     badgeTemplateId: row.badgeTemplateId,
     title: row.title,
     description: row.description,
-    criteriaUrl: row.criteriaUrl,
+    criteriaUrl: row.criteriaUri,
     archived: row.archived,
     imageUrl: image === null ? null : canonicalAppUrl(publicOrigin, image.path),
-  };
+  });
 };
 
 /** Institution-scoped integration reads share exactly the write routes' key authentication. */
@@ -115,22 +120,44 @@ export const registerProgrammaticReadRoutes = (
     );
     if (operation === null)
       return programmaticApiError(c, 404, "operation_not_found", "Operation not found");
+    const identity = {
+      operationId: operation.operationId,
+      tenantId: operation.tenantId,
+      jobType: operation.jobType,
+      assertionId: operation.assertionId,
+      idempotencyKey: operation.idempotencyKey,
+      attemptCount: operation.attemptCount,
+      createdAt: operation.createdAt,
+      updatedAt: operation.updatedAt,
+    };
     switch (operation.status) {
       case "pending":
+        c.header("Retry-After", "5");
+        return c.json(
+          programmaticOperationSchema.parse({
+            ...identity,
+            status: "pending",
+            nextAttemptAt: operation.nextAttemptAt,
+          }),
+        );
       case "processing":
         c.header("Retry-After", "5");
-        return c.json(programmaticOperationSchema.parse(operation));
+        return c.json(programmaticOperationSchema.parse({ ...identity, status: "processing" }));
       case "completed":
         return c.json(
           programmaticOperationSchema.parse({
-            ...operation,
+            ...identity,
+            status: "completed",
+            completedAt: operation.completedAt,
             result: programmaticBadgeLinks(c.env.PUBLIC_APP_ORIGIN, operation.publicId),
           }),
         );
       case "failed":
         return c.json(
           programmaticOperationSchema.parse({
-            ...operation,
+            ...identity,
+            status: "failed",
+            failedAt: operation.failedAt,
             failure: {
               code: "operation_failed",
               message:
@@ -144,16 +171,16 @@ export const registerProgrammaticReadRoutes = (
   input.app.get("/v1/programmatic/templates", async (c) => {
     const query = await readQuery(c, programmaticTemplateQuerySchema, "templates.read");
     if ("response" in query) return query.response;
-    const rows = await listProgrammaticTemplates(input.resolveDatabase(c.env), query.value);
-    const templates = rows
-      .slice(0, query.value.limit)
-      .map((row) => templateResponse(c.env.PUBLIC_APP_ORIGIN, query.value.tenantId, row));
-    return c.json({
-      tenantId: query.value.tenantId,
-      templates,
-      nextCursor:
-        rows.length > query.value.limit ? (templates.at(-1)?.badgeTemplateId ?? null) : null,
-    });
+    const page = await listProgrammaticTemplates(input.resolveDatabase(c.env), query.value);
+    return c.json(
+      programmaticTemplatePageSchema.parse({
+        tenantId: query.value.tenantId,
+        templates: page.rows.map((row) =>
+          templateResponse(c.env.PUBLIC_APP_ORIGIN, query.value.tenantId, row),
+        ),
+        nextCursor: page.nextCursor,
+      }),
+    );
   });
 
   input.app.get("/v1/programmatic/templates/:badgeTemplateId", async (c) => {
@@ -174,15 +201,14 @@ export const registerProgrammaticReadRoutes = (
   input.app.get("/v1/programmatic/assertions", async (c) => {
     const query = await readQuery(c, programmaticAssertionQuerySchema, "assertions.read");
     if ("response" in query) return query.response;
-    const rows = await listProgrammaticAssertions(input.resolveDatabase(c.env), query.value);
-    const assertions = rows
-      .slice(0, query.value.limit)
-      .map((row) => assertionResponse(c.env.PUBLIC_APP_ORIGIN, row));
-    return c.json({
-      tenantId: query.value.tenantId,
-      assertions,
-      nextCursor: rows.length > query.value.limit ? (assertions.at(-1)?.assertionId ?? null) : null,
-    });
+    const page = await listProgrammaticAssertions(input.resolveDatabase(c.env), query.value);
+    return c.json(
+      programmaticAssertionPageSchema.parse({
+        tenantId: query.value.tenantId,
+        assertions: page.rows.map((row) => assertionResponse(c.env.PUBLIC_APP_ORIGIN, row)),
+        nextCursor: page.nextCursor,
+      }),
+    );
   });
 
   input.app.get("/v1/programmatic/assertions/:assertionId", async (c) => {

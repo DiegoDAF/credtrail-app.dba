@@ -1,11 +1,25 @@
 import type { JobQueueMessageRecord } from "@credtrail/db";
 import {
   parseQueueJob,
+  type IssueBadgeQueueJob,
+  type RevokeBadgeQueueJob,
   type IssueBadgeRequest,
   type RevokeBadgeRequest,
 } from "@credtrail/validation";
 
-import type { IssueBadgeQueueEnvelope, RevokeBadgeQueueEnvelope } from "./ingress-service";
+/** Queue response reconstructed from or persisted for an issuance command. */
+export interface IssueBadgeQueueEnvelope {
+  readonly assertionId: string;
+  readonly operationId: string;
+  readonly job: IssueBadgeQueueJob;
+}
+
+/** Queue response reconstructed from or persisted for a revocation command. */
+export interface RevokeBadgeQueueEnvelope {
+  readonly revocationId: string;
+  readonly operationId: string;
+  readonly job: RevokeBadgeQueueJob;
+}
 
 type QueueIngressReplayResult<Envelope> =
   | { readonly status: "matched"; readonly envelope: Envelope }

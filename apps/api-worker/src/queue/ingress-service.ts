@@ -1,32 +1,20 @@
 import type { ImmutableCredentialStore } from "@credtrail/core-domain";
-import type {
-  IssueBadgeQueueJob,
-  IssueBadgeRequest,
-  RevokeBadgeQueueJob,
-  RevokeBadgeRequest,
-} from "@credtrail/validation";
+import type { IssueBadgeRequest, RevokeBadgeRequest } from "@credtrail/validation";
 import {
   badgeAchievementSnapshotFromTemplate,
   resolveIssuableBadgeAchievementSnapshot,
   type IssuableBadgeArtworkFailure,
 } from "../badges/badge-achievement-snapshot";
 import { issueBadgeQueueJobFromRequest, revokeBadgeQueueJobFromRequest } from "./job-builders";
-import { replayIssueBadgeQueueMessage, replayRevokeBadgeQueueMessage } from "./ingress-replay";
+import {
+  replayIssueBadgeQueueMessage,
+  replayRevokeBadgeQueueMessage,
+  type IssueBadgeQueueEnvelope,
+  type RevokeBadgeQueueEnvelope,
+} from "./ingress-replay";
 import type { QueueIngressCommandStore } from "./ingress-store";
 
-/** Queue response reconstructed from or persisted for an issuance command. */
-export interface IssueBadgeQueueEnvelope {
-  readonly assertionId: string;
-  readonly operationId: string;
-  readonly job: IssueBadgeQueueJob;
-}
-
-/** Queue response reconstructed from or persisted for a revocation command. */
-export interface RevokeBadgeQueueEnvelope {
-  readonly revocationId: string;
-  readonly operationId: string;
-  readonly job: RevokeBadgeQueueJob;
-}
+export type { IssueBadgeQueueEnvelope, RevokeBadgeQueueEnvelope } from "./ingress-replay";
 
 /** Typed result of accepting an issuance command at the queue boundary. */
 export type IssueQueueIngressResult =

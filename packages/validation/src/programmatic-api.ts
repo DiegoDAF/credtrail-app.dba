@@ -133,8 +133,7 @@ export const programmaticAcceptedSchema = z.discriminatedUnion("jobType", [
   acceptedBase.extend({ jobType: z.literal("issue_badge") }),
   acceptedBase.extend({ jobType: z.literal("revoke_badge"), revocationId: id }),
 ]);
-/** Operation identity and audit progress shared by storage and public status projections. */
-export const programmaticOperationIdentitySchema = z.object({
+const operationBase = z.object({
   operationId: id,
   tenantId: tenantIdSchema,
   jobType: z.enum(["issue_badge", "revoke_badge"]),
@@ -146,17 +145,17 @@ export const programmaticOperationIdentitySchema = z.object({
 });
 /** Processing states expose only the data meaningful for that state. */
 export const programmaticOperationSchema = z.discriminatedUnion("status", [
-  programmaticOperationIdentitySchema.extend({
+  operationBase.extend({
     status: z.literal("pending"),
     nextAttemptAt: timestamp,
   }),
-  programmaticOperationIdentitySchema.extend({ status: z.literal("processing") }),
-  programmaticOperationIdentitySchema.extend({
+  operationBase.extend({ status: z.literal("processing") }),
+  operationBase.extend({
     status: z.literal("completed"),
     completedAt: timestamp,
     result: programmaticBadgeLinksSchema,
   }),
-  programmaticOperationIdentitySchema.extend({
+  operationBase.extend({
     status: z.literal("failed"),
     failedAt: timestamp,
     failure: z.object({ code: z.literal("operation_failed"), message: z.string() }),

@@ -13,6 +13,7 @@ import {
   revokeQueueIngressCommand,
   type IssueBadgeQueueEnvelope,
   type IssueQueueIngressResult,
+  type RevokeQueueIngressResult,
   type RevokeBadgeQueueEnvelope,
 } from "../queue/ingress-service";
 import { authorizeProgrammaticWriteRequest } from "../auth/programmatic-api-key";
@@ -58,7 +59,10 @@ const authorizeTrustedInternalRequest = (c: AppContext): Response | null => {
   return null;
 };
 
-const issueQueueResponse = (c: AppContext, result: IssueQueueIngressResult): Response => {
+const queueIngressResponse = (
+  c: AppContext,
+  result: IssueQueueIngressResult | RevokeQueueIngressResult,
+): Response => {
   switch (result.status) {
     case "queued":
       return createQueuedResponse(c, result.envelope);
@@ -163,7 +167,7 @@ export const registerQueueRoutes = (input: RegisterQueueRoutesInput): void => {
       request: parsed.value,
       requestedByUserId: auth.actorUserId,
     });
-    return issueQueueResponse(c, result);
+    return queueIngressResponse(c, result);
   });
 
   app.post("/v1/programmatic/revoke", async (c) => {
@@ -191,14 +195,6 @@ export const registerQueueRoutes = (input: RegisterQueueRoutesInput): void => {
       request: parsed.value,
       requestedByUserId: auth.actorUserId,
     });
-    if (result.status === "idempotency_conflict") {
-      return programmaticApiError(
-        c,
-        409,
-        "idempotency_conflict",
-        "This idempotency key is already assigned to a different request",
-      );
-    }
-    return createQueuedResponse(c, result.envelope);
+    return queueIngressResponse(c, result);
   });
 };

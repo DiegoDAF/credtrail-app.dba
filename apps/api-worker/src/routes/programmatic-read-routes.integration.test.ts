@@ -1,5 +1,13 @@
-import { createTenantApiKey, findProgrammaticOperation, type SqlDatabase } from "@credtrail/db";
 import {
+  createTenantApiKey,
+  findProgrammaticOperation,
+  listProgrammaticTemplates,
+  listProgrammaticAssertions,
+  type SqlDatabase,
+} from "@credtrail/db";
+import {
+  programmaticTemplateQuerySchema,
+  programmaticAssertionQuerySchema,
   programmaticAcceptedSchema,
   programmaticOperationSchema,
   programmaticAssertionSchema,
@@ -187,7 +195,10 @@ describeDbIntegration("programmatic completion and institution reads", () => {
       .prepare("UPDATE job_queue_messages SET status = 'completed', completed_at = ? WHERE id = ?")
       .bind("2026-10-05T12:01:00Z", envelope.operationId)
       .run();
-    expect(programmaticOperationSchema.parse(await (await get(path, token)).json())).toMatchObject({
+    const completedBody: unknown = await (await get(path, token)).json();
+    expect(completedBody).not.toHaveProperty("publicId");
+    expect(completedBody).not.toHaveProperty("payloadJson");
+    expect(programmaticOperationSchema.parse(completedBody)).toMatchObject({
       status: "completed",
       result: {
         badgeUrl: "https://badges.example.edu/badges/published-badge",
@@ -212,6 +223,24 @@ describeDbIntegration("programmatic completion and institution reads", () => {
         })
       ).json(),
     );
+    expect(
+      await (
+        await post("/v1/programmatic/revoke", token, {
+          tenantId: f.tenantId,
+          assertionId: envelope.assertionId,
+          reason: "Withdrawn",
+          idempotencyKey: "tracked-revoke",
+        })
+      ).json(),
+    ).toEqual(revoke);
+    const revokeConflict = await post("/v1/programmatic/revoke", token, {
+      tenantId: f.tenantId,
+      assertionId: envelope.assertionId,
+      reason: "Changed reason",
+      idempotencyKey: "tracked-revoke",
+    });
+    expect(revokeConflict.status).toBe(409);
+    expect(await revokeConflict.json()).toMatchObject({ code: "idempotency_conflict" });
     await f.db
       .prepare(
         "UPDATE job_queue_messages SET status = 'failed', failed_at = ?, last_error = ? WHERE id = ?",
@@ -255,6 +284,13 @@ describeDbIntegration("programmatic completion and institution reads", () => {
       title: "Second",
     });
     await f.db.prepare("UPDATE badge_templates SET is_archived = 1 WHERE id = ?").bind(b).run();
+    const storedPage = await listProgrammaticTemplates(
+      f.db,
+      programmaticTemplateQuerySchema.parse({ tenantId: f.tenantId, limit: "1" }),
+    );
+    expect(storedPage.rows.map((row) => row.badgeTemplateId)).toEqual([a]);
+    expect(storedPage.nextCursor).toBe(a);
+    expect(storedPage.rows[0]).not.toHaveProperty("imageUrl");
     const first = programmaticTemplatePageSchema.parse(
       await (await get(`/v1/programmatic/templates?tenantId=${f.tenantId}&limit=1`, token)).json(),
     );
@@ -308,6 +344,20 @@ describeDbIntegration("programmatic completion and institution reads", () => {
       .bind("2020-10-06T00:00:00Z")
       .run();
     const base = `/v1/programmatic/assertions?tenantId=${f.tenantId}&badgeTemplateId=${f.badgeTemplateId}&recipientIdentity=learner%40example.edu&issuedFrom=2020-10-05&issuedTo=2020-10-05&limit=1`;
+    const storedPage = await listProgrammaticAssertions(
+      f.db,
+      programmaticAssertionQuerySchema.parse({
+        tenantId: f.tenantId,
+        badgeTemplateId: f.badgeTemplateId,
+        recipientIdentity: "learner@example.edu",
+        issuedFrom: "2020-10-05",
+        issuedTo: "2020-10-05",
+        limit: "1",
+      }),
+    );
+    expect(storedPage.rows.map((row) => row.assertionId)).toEqual(["a-assertion"]);
+    expect(storedPage.nextCursor).toBe("a-assertion");
+    expect(storedPage.rows[0]).not.toHaveProperty("badgeUrl");
     const first = programmaticAssertionPageSchema.parse(await (await get(base, token)).json());
     expect(first.assertions.map((a) => [a.assertionId, a.state])).toEqual([
       ["a-assertion", "expired"],
@@ -326,6 +376,7 @@ describeDbIntegration("programmatic completion and institution reads", () => {
     );
     const text = await detail.text();
     expect(text).not.toContain("vcR2Key");
+    expect(JSON.parse(text)).not.toHaveProperty("publicId");
     expect(programmaticAssertionSchema.parse(JSON.parse(text))).toMatchObject({
       state: "expired",
       badgeUrl: "https://badges.example.edu/badges/public-a-assertion",

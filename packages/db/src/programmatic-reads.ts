@@ -1,8 +1,6 @@
 import { z } from "zod";
 import {
-  programmaticOperationIdentitySchema,
-  programmaticAssertionSchema,
-  programmaticTemplateSchema,
+  recipientIdentityTypeSchema,
   type ProgrammaticAssertionQuery,
   type ProgrammaticTemplateQuery,
 } from "@credtrail/validation";
@@ -12,26 +10,43 @@ import {
 } from "./assertion-lifecycle-sql.js";
 import type { SqlDatabase } from "./tenant-scope.js";
 
-const templateRowSchema = programmaticTemplateSchema.extend({ imageUrl: z.string().nullable() });
-/** Storage projection used for programmatic template reads. */
+const templateRowSchema = z.object({
+  badgeTemplateId: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  criteriaUri: z.string().nullable(),
+  imageUri: z.string().nullable(),
+  archived: z.boolean(),
+});
+/** Selected template columns before the HTTP layer resolves public URLs. */
 export type ProgrammaticTemplateRecord = z.infer<typeof templateRowSchema>;
-const assertionRowSchema = programmaticAssertionSchema
-  .omit({ badgeUrl: true, credentialUrl: true })
-  .extend({ publicId: z.string().nullable() });
-/** Storage projection without credential blobs, keys, or administrative metadata. */
+const assertionRowSchema = z.object({
+  assertionId: z.string(),
+  publicId: z.string().nullable(),
+  badgeTemplateId: z.string(),
+  recipientIdentity: z.string(),
+  recipientIdentityType: recipientIdentityTypeSchema,
+  issuedAt: z.string(),
+  validUntil: z.string().nullable(),
+  state: z.enum(["active", "suspended", "revoked", "expired"]),
+});
+/** Selected assertion columns without credential blobs, keys, or administrative metadata. */
 export type ProgrammaticAssertionRecord = z.infer<typeof assertionRowSchema>;
 const templateSelect = `id AS badgeTemplateId, title, description,
-  criteria_uri AS criteriaUrl, image_uri AS imageUrl, (is_archived = 1) AS archived`;
+  criteria_uri AS criteriaUri, image_uri AS imageUri, (is_archived = 1) AS archived`;
 const assertionSelect = `assertions.id AS assertionId, assertions.public_id AS publicId,
   assertions.badge_template_id AS badgeTemplateId, assertions.recipient_identity AS recipientIdentity,
   assertions.recipient_identity_type AS recipientIdentityType, assertions.issued_at AS issuedAt,
   assertions.valid_until AS validUntil, ${effectiveAssertionLifecycleStateSql} AS state`;
 
-/** A tenant-scoped page sorted by immutable ID, including one lookahead row. */
+/** A tenant-scoped page sorted by immutable ID, with the lookahead row excluded. */
 export const listProgrammaticTemplates = async (
   db: SqlDatabase,
   input: ProgrammaticTemplateQuery,
-): Promise<ProgrammaticTemplateRecord[]> => {
+): Promise<{
+  readonly rows: readonly ProgrammaticTemplateRecord[];
+  readonly nextCursor: string | null;
+}> => {
   const conditions = ["tenant_id = ?"];
   const params: unknown[] = [input.tenantId];
   if (!input.includeArchived) conditions.push("is_archived = 0");
@@ -44,7 +59,12 @@ export const listProgrammaticTemplates = async (
     WHERE ${conditions.join(" AND ")} ORDER BY id ASC LIMIT ?`)
     .bind(...params, input.limit + 1)
     .all<unknown>();
-  return rows.results.map((row) => templateRowSchema.parse(row));
+  const records = rows.results.map((row) => templateRowSchema.parse(row));
+  if (records.length <= input.limit) return { rows: records, nextCursor: null };
+  const pageRows = records.slice(0, input.limit);
+  const lastRow = pageRows.at(-1);
+  if (lastRow === undefined) throw new Error("Template page is missing its cursor row");
+  return { rows: pageRows, nextCursor: lastRow.badgeTemplateId };
 };
 /** Individual lookup remains tenant-scoped even when a foreign ID is supplied. */
 export const findProgrammaticTemplate = async (
@@ -62,7 +82,10 @@ export const findProgrammaticTemplate = async (
 export const listProgrammaticAssertions = async (
   db: SqlDatabase,
   input: ProgrammaticAssertionQuery,
-): Promise<ProgrammaticAssertionRecord[]> => {
+): Promise<{
+  readonly rows: readonly ProgrammaticAssertionRecord[];
+  readonly nextCursor: string | null;
+}> => {
   const conditions = ["assertions.tenant_id = ?"];
   const params: unknown[] = [input.tenantId];
   if (input.cursor !== undefined) {
@@ -98,7 +121,12 @@ export const listProgrammaticAssertions = async (
     WHERE ${conditions.join(" AND ")} ORDER BY assertions.id ASC LIMIT ?`)
     .bind(...params, input.limit + 1)
     .all<unknown>();
-  return rows.results.map((row) => assertionRowSchema.parse(row));
+  const records = rows.results.map((row) => assertionRowSchema.parse(row));
+  if (records.length <= input.limit) return { rows: records, nextCursor: null };
+  const pageRows = records.slice(0, input.limit);
+  const lastRow = pageRows.at(-1);
+  if (lastRow === undefined) throw new Error("Assertion page is missing its cursor row");
+  return { rows: pageRows, nextCursor: lastRow.assertionId };
 };
 /** Single assertion read with its effective lifecycle state, including immediate expiry. */
 export const findProgrammaticAssertion = async (
@@ -115,18 +143,28 @@ export const findProgrammaticAssertion = async (
 };
 
 const timestamp = z.iso.datetime({ offset: true });
+const operationIdentity = z.object({
+  operationId: z.string(),
+  tenantId: z.string(),
+  jobType: z.enum(["issue_badge", "revoke_badge"]),
+  assertionId: z.string(),
+  idempotencyKey: z.string(),
+  attemptCount: z.number().int().nonnegative(),
+  createdAt: timestamp,
+  updatedAt: timestamp,
+});
 const operationRowSchema = z.discriminatedUnion("status", [
-  programmaticOperationIdentitySchema.extend({
+  operationIdentity.extend({
     status: z.literal("pending"),
     nextAttemptAt: timestamp,
   }),
-  programmaticOperationIdentitySchema.extend({ status: z.literal("processing") }),
-  programmaticOperationIdentitySchema.extend({
+  operationIdentity.extend({ status: z.literal("processing") }),
+  operationIdentity.extend({
     status: z.literal("completed"),
     completedAt: timestamp,
     publicId: z.string().nullable(),
   }),
-  programmaticOperationIdentitySchema.extend({ status: z.literal("failed"), failedAt: timestamp }),
+  operationIdentity.extend({ status: z.literal("failed"), failedAt: timestamp }),
 ]);
 /** Operation persistence projection deliberately omits raw errors and lease credentials. */
 export type ProgrammaticOperationRecord = z.infer<typeof operationRowSchema>;
