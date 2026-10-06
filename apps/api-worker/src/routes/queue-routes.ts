@@ -1,7 +1,7 @@
 import {
   parseProcessQueueRequest,
-  parseProgrammaticIssueBadgeRequest,
-  parseProgrammaticRevokeBadgeRequest,
+  programmaticIssueBadgeRequestSchema,
+  programmaticRevokeBadgeRequestSchema,
   type IssueBadgeRequest,
   type ProcessQueueRequest,
   type RevokeBadgeRequest,
@@ -17,6 +17,9 @@ import {
   type RevokeBadgeQueueEnvelope,
   type RevokeQueueIngressResult,
 } from "../queue/ingress-service";
+import { authorizeProgrammaticWriteRequest } from "../auth/programmatic-api-key";
+import { parseProgrammaticInput, programmaticApiError } from "../http/programmatic-api-response";
+import { programmaticOperationStatusUrl } from "./programmatic-api-links";
 import type { QueueIngressStore } from "../queue/ingress-store";
 
 interface ProcessQueueConfig {
@@ -34,11 +37,6 @@ interface ProcessQueueRunResult {
   failedToFinalize: number;
 }
 
-interface ValidationIssue {
-  path: unknown[];
-  message: string;
-}
-
 interface RegisterQueueRoutesInput {
   app: Hono<AppEnv>;
   resolveQueueIngressStore: (bindings: AppBindings) => QueueIngressStore;
@@ -47,64 +45,6 @@ interface RegisterQueueRoutesInput {
   processQueuedJobs: (c: AppContext, input: ProcessQueueConfig) => Promise<ProcessQueueRunResult>;
   processQueueInputWithDefaults: (input: ProcessQueueRequest) => ProcessQueueConfig;
 }
-
-const parseApiKeyScopes = (scopesJson: string): string[] => {
-  try {
-    const parsed = JSON.parse(scopesJson) as unknown;
-
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed.filter((value): value is string => typeof value === "string" && value.length > 0);
-  } catch {
-    return [];
-  }
-};
-
-const isValidationError = (error: unknown): error is { issues: ValidationIssue[] } => {
-  const isValidationIssue = (issue: unknown): issue is ValidationIssue => {
-    if (typeof issue !== "object" || issue === null) {
-      return false;
-    }
-
-    const candidate = issue as Record<string, unknown>;
-    return Array.isArray(candidate.path) && typeof candidate.message === "string";
-  };
-
-  if (!(error instanceof Error) || !("issues" in error) || !Array.isArray(error.issues)) {
-    return false;
-  }
-
-  return error.issues.every((issue) => isValidationIssue(issue));
-};
-
-const parseRequest = <Value>(
-  c: AppContext,
-  parser: (input: unknown) => Value,
-  payload: unknown,
-): { value: Value } | { response: Response } => {
-  try {
-    return { value: parser(payload) };
-  } catch (error: unknown) {
-    if (isValidationError(error)) {
-      return {
-        response: c.json(
-          {
-            error: "Invalid request payload",
-            details: error.issues.map((issue) => ({
-              path: issue.path.map((segment) => String(segment)),
-              message: issue.message,
-            })),
-          },
-          400,
-        ),
-      };
-    }
-
-    throw error;
-  }
-};
 
 const authorizeTrustedInternalRequest = (c: AppContext): Response | null => {
   const configuredToken = c.env.JOB_PROCESSOR_TOKEN?.trim();
@@ -120,58 +60,6 @@ const authorizeTrustedInternalRequest = (c: AppContext): Response | null => {
   return null;
 };
 
-const authorizeProgrammaticRequest = async (
-  c: AppContext,
-  store: QueueIngressStore,
-  input: {
-    readonly tenantId: string;
-    readonly requiredScope: "queue.issue" | "queue.revoke";
-  },
-  sha256Hex: (value: string) => Promise<string>,
-): Promise<{ actorUserId: string } | { response: Response }> => {
-  const rawApiKey = c.req.header("x-api-key")?.trim();
-
-  if (rawApiKey === undefined || rawApiKey.length === 0) {
-    return { response: c.json({ error: "x-api-key header is required" }, 401) };
-  }
-
-  const nowIso = new Date().toISOString();
-  const keyRecord = await store.findActiveApiKeyByHash({
-    keyHash: await sha256Hex(rawApiKey),
-    nowIso,
-  });
-
-  if (keyRecord === null) {
-    return { response: c.json({ error: "Invalid or expired API key" }, 401) };
-  }
-
-  if (keyRecord.tenantId !== input.tenantId) {
-    return { response: c.json({ error: "API key tenant does not match request tenant" }, 403) };
-  }
-
-  const scopes = parseApiKeyScopes(keyRecord.scopesJson);
-
-  if (!scopes.includes("*") && !scopes.includes(input.requiredScope)) {
-    return {
-      response: c.json({ error: `API key is missing required scope: ${input.requiredScope}` }, 403),
-    };
-  }
-
-  const actorUserId = keyRecord.createdByUserId?.trim();
-
-  if (actorUserId === undefined || actorUserId.length === 0) {
-    return {
-      response: c.json(
-        { error: "API key is missing an owning user and cannot perform write operations" },
-        403,
-      ),
-    };
-  }
-
-  await store.touchApiKeyLastUsedAt(keyRecord.id, nowIso);
-  return { actorUserId };
-};
-
 const issueQueueResponse = (
   c: AppContext,
   result: IssueQueueIngressResult,
@@ -181,17 +69,26 @@ const issueQueueResponse = (
     case "queued":
       return createQueuedIssueResponse(c, result.envelope, channel);
     case "idempotency_conflict":
-      return c.json(
-        { error: "This idempotency key is already assigned to a different request" },
+      return programmaticApiError(
+        c,
         409,
+        "idempotency_conflict",
+        "This idempotency key is already assigned to a different request",
       );
     case "template_not_found":
-      return c.json({ error: "Badge template not found" }, 404);
+      return programmaticApiError(c, 404, "template_not_found", "Badge template not found");
     case "template_archived":
-      return c.json({ error: "Badge template is archived" }, 409);
+      return programmaticApiError(c, 409, "template_archived", "Badge template is archived");
     case "artwork_failure": {
       const failure = badgeArtworkIssuanceHttpFailure(result.failure);
-      return c.json({ error: failure.error }, failure.statusCode);
+      return programmaticApiError(
+        c,
+        failure.statusCode,
+        result.failure.status === "storage_unavailable"
+          ? "storage_unavailable"
+          : "artwork_required",
+        failure.error,
+      );
     }
   }
 };
@@ -203,9 +100,11 @@ const revokeQueueResponse = (
   channel?: "programmatic_api_key",
 ): Response => {
   if (result.status === "idempotency_conflict") {
-    return c.json(
-      { error: "This idempotency key is already assigned to a different request" },
+    return programmaticApiError(
+      c,
       409,
+      "idempotency_conflict",
+      "This idempotency key is already assigned to a different request",
     );
   }
 
@@ -217,8 +116,17 @@ const createQueuedIssueResponse = (
   queued: IssueBadgeQueueEnvelope,
   channel?: "programmatic_api_key",
 ): Response => {
+  const statusUrl = programmaticOperationStatusUrl(
+    c.env.PUBLIC_APP_ORIGIN,
+    queued.job.tenantId,
+    queued.operationId,
+  );
+  c.header("Location", statusUrl);
+  c.header("Cache-Control", "no-store");
   return c.json(
     {
+      operationId: queued.operationId,
+      statusUrl,
       status: "queued",
       ...(channel === undefined ? {} : { channel }),
       jobType: queued.job.jobType,
@@ -235,8 +143,17 @@ const createQueuedRevokeResponse = (
   queued: RevokeBadgeQueueEnvelope,
   channel?: "programmatic_api_key",
 ): Response => {
+  const statusUrl = programmaticOperationStatusUrl(
+    c.env.PUBLIC_APP_ORIGIN,
+    queued.job.tenantId,
+    queued.operationId,
+  );
+  c.header("Location", statusUrl);
+  c.header("Cache-Control", "no-store");
   return c.json(
     {
+      operationId: queued.operationId,
+      statusUrl,
       status: "queued",
       ...(channel === undefined ? {} : { channel }),
       jobType: queued.job.jobType,
@@ -280,6 +197,14 @@ const handleRevokeCommand = async (
   return revokeQueueResponse(c, request, result, channel);
 };
 
+const readProgrammaticJson = async (c: AppContext): Promise<unknown> => {
+  try {
+    return await c.req.json<unknown>();
+  } catch {
+    return undefined;
+  }
+};
+
 /** Registers authenticated queue-processing and queue-ingress HTTP routes. */
 export const registerQueueRoutes = (input: RegisterQueueRoutesInput): void => {
   const { app } = input;
@@ -297,14 +222,18 @@ export const registerQueueRoutes = (input: RegisterQueueRoutesInput): void => {
   });
 
   app.post("/v1/programmatic/issue", async (c) => {
-    const parsed = parseRequest(c, parseProgrammaticIssueBadgeRequest, await c.req.json<unknown>());
+    const parsed = parseProgrammaticInput(
+      c,
+      programmaticIssueBadgeRequestSchema,
+      await readProgrammaticJson(c),
+    );
 
     if ("response" in parsed) {
       return parsed.response;
     }
 
     const store = input.resolveQueueIngressStore(c.env);
-    const auth = await authorizeProgrammaticRequest(
+    const auth = await authorizeProgrammaticWriteRequest(
       c,
       store,
       { tenantId: parsed.value.tenantId, requiredScope: "queue.issue" },
@@ -317,10 +246,10 @@ export const registerQueueRoutes = (input: RegisterQueueRoutesInput): void => {
   });
 
   app.post("/v1/programmatic/revoke", async (c) => {
-    const parsed = parseRequest(
+    const parsed = parseProgrammaticInput(
       c,
-      parseProgrammaticRevokeBadgeRequest,
-      await c.req.json<unknown>(),
+      programmaticRevokeBadgeRequestSchema,
+      await readProgrammaticJson(c),
     );
 
     if ("response" in parsed) {
@@ -328,7 +257,7 @@ export const registerQueueRoutes = (input: RegisterQueueRoutesInput): void => {
     }
 
     const store = input.resolveQueueIngressStore(c.env);
-    const auth = await authorizeProgrammaticRequest(
+    const auth = await authorizeProgrammaticWriteRequest(
       c,
       store,
       { tenantId: parsed.value.tenantId, requiredScope: "queue.revoke" },

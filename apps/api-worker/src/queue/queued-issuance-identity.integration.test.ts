@@ -11,6 +11,8 @@ import {
   signCredentialWithDataIntegrityProof,
   type ImmutableCredentialStore,
 } from "@credtrail/core-domain";
+import { programmaticAcceptedSchema, programmaticOperationSchema } from "@credtrail/validation";
+import { registerProgrammaticReadRoutes } from "../routes/programmatic-read-routes";
 import { Hono } from "hono";
 import { afterEach, expect, it } from "vitest";
 import {
@@ -133,13 +135,19 @@ describeDbIntegration("durable queued issuance identity", () => {
       processQueuedJobs: process,
       processQueueInputWithDefaults,
     });
+    registerProgrammaticReadRoutes({
+      app,
+      resolveDatabase: () => db,
+      resolveQueueIngressStore: () => createPostgresQueueIngressStore(db),
+      sha256Hex,
+    });
     const token = `ctak_${crypto.randomUUID()}`;
     await createTenantApiKey(db, {
       tenantId: fixture.tenantId,
       label: "Queue test",
       keyPrefix: token.slice(0, 13),
       keyHash: await sha256Hex(token),
-      scopesJson: '["queue.issue"]',
+      scopesJson: '["queue.issue","operations.read"]',
       createdByUserId: fixture.userId,
     });
     const enqueue = async (): Promise<Response> =>
@@ -160,7 +168,9 @@ describeDbIntegration("durable queued issuance identity", () => {
       );
     const response = await enqueue();
     expect(response.status).toBe(202);
-    const envelope = await response.json<{ assertionId: string }>();
+    const envelope = programmaticAcceptedSchema.parse(await response.json());
+    const pending = await app.request(envelope.statusUrl, { headers: { "x-api-key": token } }, env);
+    expect(programmaticOperationSchema.parse(await pending.json()).status).toBe("pending");
     const processed = await app.request(
       "https://badges.example.edu/v1/jobs/process",
       { method: "POST", headers: { authorization: "Bearer test-processor" } },
@@ -171,6 +181,16 @@ describeDbIntegration("durable queued issuance identity", () => {
     const assertion = await findAssertionById(db, fixture.tenantId, envelope.assertionId);
     expect(assertion?.id).toBe(envelope.assertionId);
     if (assertion === null) throw new Error("Queued assertion missing");
+    const completed = await app.request(
+      envelope.statusUrl,
+      { headers: { "x-api-key": token } },
+      env,
+    );
+    expect(programmaticOperationSchema.parse(await completed.json())).toMatchObject({
+      status: "completed",
+      assertionId: assertion.id,
+      result: { badgeUrl: `https://badges.example.edu/badges/${assertion.publicId}` },
+    });
     const value = objects.get(assertion.vcR2Key);
     expect(value).toBeDefined();
     expect(value === undefined ? undefined : JSON.parse(value)).toMatchObject({

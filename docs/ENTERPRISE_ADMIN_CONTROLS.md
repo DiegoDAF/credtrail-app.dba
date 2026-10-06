@@ -20,6 +20,8 @@ Programmatic queue ingress endpoints require `x-api-key`:
 - `POST /v1/programmatic/issue` (requires scope `queue.issue`)
 - `POST /v1/programmatic/revoke` (requires scope `queue.revoke`)
 
+Read access uses separate `operations.read`, `templates.read`, and `assertions.read` scopes. See the [institution integration API guide](PROGRAMMATIC_API.md) for completion polling, resource reads, pagination, errors, and OpenAPI.
+
 Write-request contract:
 
 - `idempotencyKey` is required on all programmatic write requests.

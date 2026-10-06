@@ -1,3 +1,4 @@
+import type { registerProgrammaticReadRoutes } from "../routes/programmatic-read-routes";
 import type { JsonObject } from "@credtrail/core-domain";
 import type { AssertionRecord } from "@credtrail/db";
 import type { PublicBadgeViewModel } from "../badges/public-badge-model";
@@ -28,7 +29,8 @@ import type { registerTenantGovernanceRoutes } from "../routes/tenant-governance
 import type { registerTenantLmsConnectionRoutes } from "../routes/tenant-lms-connection-routes";
 import type { registerCommonMiddleware } from "../http/common-middleware";
 
-export type AppDeps = Omit<Parameters<typeof registerCommonMiddleware>[0], "app"> &
+export type AppDeps = Omit<Parameters<typeof registerProgrammaticReadRoutes>[0], "app"> &
+  Omit<Parameters<typeof registerCommonMiddleware>[0], "app"> &
   Omit<Parameters<typeof registerGoogleAuthRoutes>[0], "app"> &
   Omit<Parameters<typeof registerHealthRoutes>[0], "app"> &
   Omit<Parameters<typeof registerBootstrapAdminRoutes>[0], "app"> &

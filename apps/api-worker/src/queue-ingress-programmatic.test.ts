@@ -112,7 +112,7 @@ describe("POST /v1/programmatic/issue and /v1/programmatic/revoke", () => {
     );
 
     expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toEqual({ error });
+    await expect(response.json()).resolves.toEqual({ code: "artwork_required", error });
     expect(store.enqueuedInputs).toHaveLength(0);
   });
 
@@ -145,6 +145,7 @@ describe("POST /v1/programmatic/issue and /v1/programmatic/revoke", () => {
 
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
+      code: "storage_unavailable",
       error: "CredTrail could not check this badge's artwork right now. Try again shortly.",
     });
     expect(store.enqueuedInputs).toHaveLength(0);
@@ -273,6 +274,7 @@ describe("POST /v1/programmatic/issue and /v1/programmatic/revoke", () => {
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
+      code: "idempotency_conflict",
       error: "This idempotency key is already assigned to a different request",
     });
     expect(store.badgeTemplateLookups).toHaveLength(0);

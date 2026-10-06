@@ -354,7 +354,7 @@ INSERT INTO users (id,email) VALUES ('${userId}','smoke-owner@example.edu');
 INSERT INTO memberships (tenant_id,user_id,role) VALUES ('${tenantId}','${userId}','owner');
 INSERT INTO tenant_org_units (id,tenant_id,unit_type,slug,display_name,parent_org_unit_id,created_by_user_id) VALUES ('${tenantId}:org:institution','${tenantId}','institution','institution','Smoke institution',NULL,'${userId}');
 INSERT INTO badge_templates (id,tenant_id,slug,title,image_uri,created_by_user_id,owner_org_unit_id,governance_metadata_json) VALUES ('${badgeTemplateId}','${tenantId}','smoke','Smoke achievement','${origin}/badges/assets/${tenantId}/${badgeTemplateId}/asset_test','${userId}','${tenantId}:org:institution','{"stability":"institution_registry"}');
-INSERT INTO tenant_api_keys (id,tenant_id,label,key_prefix,key_hash,scopes_json,created_by_user_id,created_at,updated_at) VALUES ('smoke_key','${tenantId}','Smoke API key','${apiKey.slice(0, 13)}','${createHash("sha256").update(apiKey).digest("hex")}','["queue.issue","queue.revoke"]','${userId}',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);`,
+INSERT INTO tenant_api_keys (id,tenant_id,label,key_prefix,key_hash,scopes_json,created_by_user_id,created_at,updated_at) VALUES ('smoke_key','${tenantId}','Smoke API key','${apiKey.slice(0, 13)}','${createHash("sha256").update(apiKey).digest("hex")}','["queue.issue","queue.revoke","operations.read","templates.read","assertions.read"]','${userId}',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);`,
   );
   const authHttp = await playwrightRequest.newContext({ ignoreHTTPSErrors: true });
   try {
@@ -395,6 +395,19 @@ INSERT INTO tenant_api_keys (id,tenant_id,label,key_prefix,key_hash,scopes_json,
   });
   assert.equal(accepted.status(), 202);
   const envelope = await accepted.json();
+  assert.equal(accepted.headers().location, envelope.statusUrl);
+  assert.equal(new URL(envelope.statusUrl).origin, origin);
+  const pending = await http.get(envelope.statusUrl, { headers: { "x-api-key": apiKey } });
+  assert.equal(pending.status(), 200);
+  assert.equal((await pending.json()).status, "pending");
+  assert.equal(pending.headers()["cache-control"], "no-store");
+  const templates = await http.get(`${origin}/v1/programmatic/templates?tenantId=${tenantId}`, { headers: { "x-api-key": apiKey } });
+  assert.equal(templates.status(), 200);
+  const templatePage = await templates.json();
+  assert.equal(templatePage.templates[0].badgeTemplateId, badgeTemplateId);
+  assert.equal(templatePage.templates[0].imageUrl, `${origin}/badges/assets/${tenantId}/${badgeTemplateId}/asset_test`);
+  const apiDescription = await http.get(`${origin}/v1/programmatic/openapi.json`);
+  assert.equal((await apiDescription.json()).servers[0].url, origin);
   await sql(`INSERT INTO job_queue_messages
 (id,tenant_id,job_type,payload_json,idempotency_key,available_at,status,created_at,updated_at)
 VALUES ('smoke-lifecycle','smoke_empty_tenant','process_badge_rule_lifecycle',
@@ -429,6 +442,14 @@ CURRENT_TIMESTAMP::text,'pending',CURRENT_TIMESTAMP::text,CURRENT_TIMESTAMP::tex
     ),
   );
   assert.equal(row.id, envelope.assertionId);
+  const completed = await http.get(envelope.statusUrl, { headers: { "x-api-key": apiKey } });
+  const completion = await completed.json();
+  assert.equal(completion.status, "completed");
+  assert.equal(completion.result.badgeUrl, `${origin}/badges/${row.public_id}`);
+  const assertions = await http.get(`${origin}/v1/programmatic/assertions?tenantId=${tenantId}&recipientIdentity=learner%40example.edu`, { headers: { "x-api-key": apiKey } });
+  assert.equal((await assertions.json()).assertions[0].assertionId, row.id);
+  const foreignRead = await http.get(`${origin}/v1/programmatic/templates?tenantId=smoke_empty_tenant`, { headers: { "x-api-key": apiKey } });
+  assert.equal(foreignRead.status(), 403);
   assert(row.vc_r2_key.includes(encodeURIComponent(row.id)));
   const credentialResponse = await http.get(`${origin}/badges/${row.public_id}/jsonld`);
   assert.equal(credentialResponse.status(), 200);
@@ -484,6 +505,11 @@ CURRENT_TIMESTAMP::text,'pending',CURRENT_TIMESTAMP::text,CURRENT_TIMESTAMP::tex
       "completed",
     "queue revocation",
   );
+  const revocationEnvelope = await revoked.json();
+  const revocationStatus = await http.get(revocationEnvelope.statusUrl, { headers: { "x-api-key": apiKey } });
+  assert.equal((await revocationStatus.json()).status, "completed");
+  const revokedDetail = await http.get(`${origin}/v1/programmatic/assertions/${encodeURIComponent(row.id)}?tenantId=${tenantId}`, { headers: { "x-api-key": apiKey } });
+  assert.equal((await revokedDetail.json()).state, "revoked");
   const inactive = await verify();
   assert.equal(inactive.verification.status, "revoked");
   assert.equal(inactive.verification.checks.credentialStatus.revoked, true);

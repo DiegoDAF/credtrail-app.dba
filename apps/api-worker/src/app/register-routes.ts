@@ -1,3 +1,4 @@
+import { registerProgrammaticReadRoutes } from "../routes/programmatic-read-routes";
 import type { Hono } from "hono";
 import type { AppEnv } from "./types";
 import type { AppDeps } from "./app-deps";
@@ -88,4 +89,5 @@ export const registerRoutes = (input: RegisterRoutesInput): void => {
   registerAssertionRoutes(routeInput);
   registerSigningRoutes(routeInput);
   registerQueueRoutes(routeInput);
+  registerProgrammaticReadRoutes(routeInput);
 };

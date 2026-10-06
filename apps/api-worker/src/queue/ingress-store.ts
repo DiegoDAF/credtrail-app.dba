@@ -6,11 +6,11 @@ import {
   touchTenantApiKeyLastUsedAt,
   type BadgeTemplateRecord,
   type EnqueueJobQueueMessageInput,
-  type FindActiveTenantApiKeyByHashInput,
   type JobQueueMessageRecord,
   type SqlDatabase,
-  type TenantApiKeyRecord,
 } from "@credtrail/db";
+
+import type { ProgrammaticAuthorizationStore } from "../auth/programmatic-api-key";
 
 /** Persistence required to create and replay queue commands. */
 export interface QueueIngressCommandStore {
@@ -27,12 +27,7 @@ export interface QueueIngressCommandStore {
 }
 
 /** Persistence required to authorize a programmatic queue command. */
-export interface QueueIngressAuthorizationStore {
-  findActiveApiKeyByHash(
-    input: FindActiveTenantApiKeyByHashInput,
-  ): Promise<TenantApiKeyRecord | null>;
-  touchApiKeyLastUsedAt(apiKeyId: string, lastUsedAt: string): Promise<void>;
-}
+export type QueueIngressAuthorizationStore = ProgrammaticAuthorizationStore;
 
 /** Complete persistence boundary used by queue-ingress HTTP routes. */
 export type QueueIngressStore = QueueIngressCommandStore & QueueIngressAuthorizationStore;

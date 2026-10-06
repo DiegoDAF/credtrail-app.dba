@@ -17,12 +17,14 @@ import type { QueueIngressCommandStore } from "./ingress-store";
 /** Queue response reconstructed from or persisted for an issuance command. */
 export interface IssueBadgeQueueEnvelope {
   readonly assertionId: string;
+  readonly operationId: string;
   readonly job: IssueBadgeQueueJob;
 }
 
 /** Queue response reconstructed from or persisted for a revocation command. */
 export interface RevokeBadgeQueueEnvelope {
   readonly revocationId: string;
+  readonly operationId: string;
   readonly job: RevokeBadgeQueueJob;
 }
 

@@ -168,3 +168,7 @@ passwords, Reply-To, and optional copies of badge notifications.
 ## Observability
 
 - Structured logs are emitted as JSON and can be exported through Logpush configuration.
+
+## Institution integration API
+
+See the [integration API guide](docs/PROGRAMMATIC_API.md) for issuing and revoking badges, tracking completion, discovering templates, and reconciling issued credentials with scoped API keys. The [OpenAPI document](docs/openapi/programmatic.openapi.json) is also served at `/v1/programmatic/openapi.json`.

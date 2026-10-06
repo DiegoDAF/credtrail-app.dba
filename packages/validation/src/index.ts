@@ -17,3 +17,5 @@ export {
   trustedCredentialSkillSchema,
   type TrustEdCredentialMetadata,
 } from "./trusted-credential.js";
+
+export * from "./programmatic-api.js";

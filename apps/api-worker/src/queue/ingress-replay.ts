@@ -13,11 +13,13 @@ type QueueIngressReplayResult<Envelope> =
 
 interface IssueBadgeQueueEnvelope {
   readonly assertionId: string;
+  readonly operationId: string;
   readonly job: IssueBadgeQueueJob;
 }
 
 interface RevokeBadgeQueueEnvelope {
   readonly revocationId: string;
+  readonly operationId: string;
   readonly job: RevokeBadgeQueueJob;
 }
 
@@ -80,6 +82,7 @@ export const replayIssueBadgeQueueMessage = (input: {
   return {
     status: "matched",
     envelope: {
+      operationId: input.message.id,
       assertionId: job.payload.assertionId,
       job,
     },
@@ -116,6 +119,7 @@ export const replayRevokeBadgeQueueMessage = (input: {
   return {
     status: "matched",
     envelope: {
+      operationId: input.message.id,
       revocationId: job.payload.revocationId,
       job,
     },
