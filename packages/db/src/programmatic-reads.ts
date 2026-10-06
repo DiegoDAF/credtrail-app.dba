@@ -1,31 +1,23 @@
 import { z } from "zod";
-import type { ProgrammaticAssertionQuery, ProgrammaticTemplateQuery } from "@credtrail/validation";
+import {
+  programmaticOperationIdentitySchema,
+  programmaticAssertionSchema,
+  programmaticTemplateSchema,
+  type ProgrammaticAssertionQuery,
+  type ProgrammaticTemplateQuery,
+} from "@credtrail/validation";
 import {
   effectiveAssertionLifecycleStateSql,
   latestAssertionLifecycleJoinSql,
 } from "./assertion-lifecycle-sql.js";
 import type { SqlDatabase } from "./tenant-scope.js";
 
-const templateRowSchema = z.object({
-  badgeTemplateId: z.string(),
-  title: z.string(),
-  description: z.string().nullable(),
-  criteriaUrl: z.string().nullable(),
-  imageUrl: z.string().nullable(),
-  archived: z.boolean(),
-});
+const templateRowSchema = programmaticTemplateSchema.extend({ imageUrl: z.string().nullable() });
 /** Storage projection used for programmatic template reads. */
 export type ProgrammaticTemplateRecord = z.infer<typeof templateRowSchema>;
-const assertionRowSchema = z.object({
-  assertionId: z.string(),
-  publicId: z.string().nullable(),
-  badgeTemplateId: z.string(),
-  recipientIdentity: z.string(),
-  recipientIdentityType: z.enum(["email", "email_sha256", "did", "url"]),
-  issuedAt: z.string(),
-  validUntil: z.string().nullable(),
-  state: z.enum(["active", "suspended", "revoked", "expired"]),
-});
+const assertionRowSchema = programmaticAssertionSchema
+  .omit({ badgeUrl: true, credentialUrl: true })
+  .extend({ publicId: z.string().nullable() });
 /** Storage projection without credential blobs, keys, or administrative metadata. */
 export type ProgrammaticAssertionRecord = z.infer<typeof assertionRowSchema>;
 const templateSelect = `id AS badgeTemplateId, title, description,
@@ -122,29 +114,20 @@ export const findProgrammaticAssertion = async (
   return row === null ? null : assertionRowSchema.parse(row);
 };
 
-const operationRowSchema = z
-  .object({
-    operationId: z.string(),
-    tenantId: z.string(),
-    jobType: z.enum(["issue_badge", "revoke_badge"]),
-    payloadJson: z.string(),
-    idempotencyKey: z.string(),
-    attemptCount: z.number().int().nonnegative(),
-    status: z.enum(["pending", "processing", "completed", "failed"]),
-    availableAt: z.string(),
-    completedAt: z.string().nullable(),
-    failedAt: z.string().nullable(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
-  })
-  .superRefine((row, ctx) => {
-    if (
-      (row.status === "completed" && row.completedAt === null) ||
-      (row.status === "failed" && row.failedAt === null)
-    ) {
-      ctx.addIssue({ code: "custom", message: "Terminal operation is missing its timestamp" });
-    }
-  });
+const timestamp = z.iso.datetime({ offset: true });
+const operationRowSchema = z.discriminatedUnion("status", [
+  programmaticOperationIdentitySchema.extend({
+    status: z.literal("pending"),
+    nextAttemptAt: timestamp,
+  }),
+  programmaticOperationIdentitySchema.extend({ status: z.literal("processing") }),
+  programmaticOperationIdentitySchema.extend({
+    status: z.literal("completed"),
+    completedAt: timestamp,
+    publicId: z.string().nullable(),
+  }),
+  programmaticOperationIdentitySchema.extend({ status: z.literal("failed"), failedAt: timestamp }),
+]);
 /** Operation persistence projection deliberately omits raw errors and lease credentials. */
 export type ProgrammaticOperationRecord = z.infer<typeof operationRowSchema>;
 /** Only issuance and revocation operations can be read through the public integration API. */
@@ -154,11 +137,15 @@ export const findProgrammaticOperation = async (
   operationId: string,
 ): Promise<ProgrammaticOperationRecord | null> => {
   const row = await db
-    .prepare(`SELECT id AS operationId, tenant_id AS tenantId, job_type AS jobType,
-    payload_json AS payloadJson, idempotency_key AS idempotencyKey, attempt_count AS attemptCount,
-    status, available_at AS availableAt, completed_at AS completedAt, failed_at AS failedAt,
-    created_at AS createdAt, updated_at AS updatedAt FROM job_queue_messages
-    WHERE tenant_id = ? AND id = ? AND job_type IN ('issue_badge', 'revoke_badge')`)
+    .prepare(`SELECT jobs.id AS operationId, jobs.tenant_id AS tenantId, jobs.job_type AS jobType,
+    jobs.payload_json::jsonb ->> 'assertionId' AS assertionId,
+    jobs.idempotency_key AS idempotencyKey, jobs.attempt_count AS attemptCount,
+    jobs.status, jobs.available_at AS nextAttemptAt, jobs.completed_at AS completedAt,
+    jobs.failed_at AS failedAt, jobs.created_at AS createdAt, jobs.updated_at AS updatedAt,
+    assertions.public_id AS publicId FROM job_queue_messages AS jobs
+    LEFT JOIN assertions ON jobs.status = 'completed' AND assertions.tenant_id = jobs.tenant_id
+      AND assertions.id = jobs.payload_json::jsonb ->> 'assertionId'
+    WHERE jobs.tenant_id = ? AND jobs.id = ? AND jobs.job_type IN ('issue_badge', 'revoke_badge')`)
     .bind(tenantId, operationId)
     .first<unknown>();
   return row === null ? null : operationRowSchema.parse(row);

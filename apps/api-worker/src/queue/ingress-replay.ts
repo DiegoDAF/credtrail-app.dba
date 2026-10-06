@@ -1,27 +1,15 @@
 import type { JobQueueMessageRecord } from "@credtrail/db";
 import {
   parseQueueJob,
-  type IssueBadgeQueueJob,
   type IssueBadgeRequest,
-  type RevokeBadgeQueueJob,
   type RevokeBadgeRequest,
 } from "@credtrail/validation";
+
+import type { IssueBadgeQueueEnvelope, RevokeBadgeQueueEnvelope } from "./ingress-service";
 
 type QueueIngressReplayResult<Envelope> =
   | { readonly status: "matched"; readonly envelope: Envelope }
   | { readonly status: "conflict" };
-
-interface IssueBadgeQueueEnvelope {
-  readonly assertionId: string;
-  readonly operationId: string;
-  readonly job: IssueBadgeQueueJob;
-}
-
-interface RevokeBadgeQueueEnvelope {
-  readonly revocationId: string;
-  readonly operationId: string;
-  readonly job: RevokeBadgeQueueJob;
-}
 
 const parsePersistedQueueJob = (message: JobQueueMessageRecord) => {
   let payload: unknown;

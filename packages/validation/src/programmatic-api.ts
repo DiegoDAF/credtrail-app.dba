@@ -16,6 +16,7 @@ export type ProgrammaticApiScope = z.infer<typeof programmaticApiScopeSchema>;
 const id = resourceIdSchema.max(256);
 const pageShape = {
   tenantId: tenantIdSchema.max(256),
+  // (?![\s\S]) requires absolute end-of-string, including after a trailing newline.
   limit: z
     .string()
     .regex(/^(?:[1-9]\d?|100)(?![\s\S])/u)
@@ -119,18 +120,21 @@ export const programmaticAssertionPageSchema = z.object({
   assertions: z.array(programmaticAssertionSchema),
   nextCursor: id.nullable(),
 });
-/** Accepted commands retain their operation identity when replayed. */
-export const programmaticAcceptedSchema = z.object({
+const acceptedBase = z.object({
   status: z.literal("queued"),
   channel: z.literal("programmatic_api_key"),
-  jobType: z.enum(["issue_badge", "revoke_badge"]),
   assertionId: id,
-  revocationId: id.optional(),
   idempotencyKey: z.string(),
   operationId: id,
   statusUrl: url,
 });
-const operationBase = z.object({
+/** Revocation acceptance always includes its reserved revocation ID; replay retains all IDs. */
+export const programmaticAcceptedSchema = z.discriminatedUnion("jobType", [
+  acceptedBase.extend({ jobType: z.literal("issue_badge") }),
+  acceptedBase.extend({ jobType: z.literal("revoke_badge"), revocationId: id }),
+]);
+/** Operation identity and audit progress shared by storage and public status projections. */
+export const programmaticOperationIdentitySchema = z.object({
   operationId: id,
   tenantId: tenantIdSchema,
   jobType: z.enum(["issue_badge", "revoke_badge"]),
@@ -142,14 +146,17 @@ const operationBase = z.object({
 });
 /** Processing states expose only the data meaningful for that state. */
 export const programmaticOperationSchema = z.discriminatedUnion("status", [
-  operationBase.extend({ status: z.literal("pending"), nextAttemptAt: timestamp }),
-  operationBase.extend({ status: z.literal("processing") }),
-  operationBase.extend({
+  programmaticOperationIdentitySchema.extend({
+    status: z.literal("pending"),
+    nextAttemptAt: timestamp,
+  }),
+  programmaticOperationIdentitySchema.extend({ status: z.literal("processing") }),
+  programmaticOperationIdentitySchema.extend({
     status: z.literal("completed"),
     completedAt: timestamp,
     result: programmaticBadgeLinksSchema,
   }),
-  operationBase.extend({
+  programmaticOperationIdentitySchema.extend({
     status: z.literal("failed"),
     failedAt: timestamp,
     failure: z.object({ code: z.literal("operation_failed"), message: z.string() }),

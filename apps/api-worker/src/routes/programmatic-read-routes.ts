@@ -8,7 +8,6 @@ import {
   type ProgrammaticTemplateRecord,
 } from "@credtrail/db";
 import {
-  parseQueueJob,
   resolveManagedBadgeTemplateImageReference,
   programmaticAssertionParamsSchema,
   programmaticAssertionQuerySchema,
@@ -116,59 +115,22 @@ export const registerProgrammaticReadRoutes = (
     );
     if (operation === null)
       return programmaticApiError(c, 404, "operation_not_found", "Operation not found");
-    const job = parseQueueJob({
-      tenantId: operation.tenantId,
-      jobType: operation.jobType,
-      payload: JSON.parse(operation.payloadJson),
-      idempotencyKey: operation.idempotencyKey,
-    });
-    if (job.jobType !== "issue_badge" && job.jobType !== "revoke_badge") {
-      throw new Error("Programmatic operation contains an unsupported job");
-    }
-    const common = {
-      operationId: operation.operationId,
-      tenantId: operation.tenantId,
-      jobType: job.jobType,
-      assertionId: job.payload.assertionId,
-      idempotencyKey: operation.idempotencyKey,
-      attemptCount: operation.attemptCount,
-      createdAt: operation.createdAt,
-      updatedAt: operation.updatedAt,
-    };
     switch (operation.status) {
       case "pending":
-        c.header("Retry-After", "5");
-        return c.json(
-          programmaticOperationSchema.parse({
-            ...common,
-            status: "pending",
-            nextAttemptAt: operation.availableAt,
-          }),
-        );
       case "processing":
         c.header("Retry-After", "5");
-        return c.json(programmaticOperationSchema.parse({ ...common, status: "processing" }));
-      case "completed": {
-        const assertion = await findProgrammaticAssertion(
-          db,
-          operation.tenantId,
-          job.payload.assertionId,
-        );
+        return c.json(programmaticOperationSchema.parse(operation));
+      case "completed":
         return c.json(
           programmaticOperationSchema.parse({
-            ...common,
-            status: "completed",
-            completedAt: operation.completedAt,
-            result: programmaticBadgeLinks(c.env.PUBLIC_APP_ORIGIN, assertion?.publicId ?? null),
+            ...operation,
+            result: programmaticBadgeLinks(c.env.PUBLIC_APP_ORIGIN, operation.publicId),
           }),
         );
-      }
       case "failed":
         return c.json(
           programmaticOperationSchema.parse({
-            ...common,
-            status: "failed",
-            failedAt: operation.failedAt,
+            ...operation,
             failure: {
               code: "operation_failed",
               message:

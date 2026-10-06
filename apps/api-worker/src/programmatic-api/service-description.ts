@@ -1,6 +1,7 @@
 import type { JsonObject } from "@credtrail/core-domain";
 import {
   jsonObjectSchema,
+  type ProgrammaticApiScope,
   programmaticIssueBadgeRequestSchema,
   programmaticRevokeBadgeRequestSchema,
   programmaticAcceptedSchema,
@@ -66,7 +67,7 @@ const pathParameter = (name: string): JsonObject => ({
 const read = (
   operationId: string,
   summary: string,
-  scope: string,
+  scope: ProgrammaticApiScope,
   parameters: JsonObject[],
   schema: string,
 ): JsonObject => ({
@@ -76,7 +77,7 @@ const read = (
   parameters,
   responses: { "200": response("Successful institution-scoped read.", schema), ...errors },
 });
-const write = (operationId: string, scope: string, schema: string): JsonObject => ({
+const write = (operationId: string, scope: ProgrammaticApiScope, schema: string): JsonObject => ({
   operationId,
   summary: operationId === "issueBadge" ? "Queue badge issuance" : "Queue badge revocation",
   "x-required-scope": scope,
@@ -105,8 +106,8 @@ const write = (operationId: string, scope: string, schema: string): JsonObject =
   },
 });
 
-/** OpenAPI 3.1 for integration routes, generated from their runtime request/response schemas. */
-export const programmaticApiDescription = (publicOrigin: string): JsonObject => ({
+// Schema generation is static. Only the configured public server varies between requests.
+const description: JsonObject = {
   openapi: "3.1.0",
   info: {
     title: "CredTrail Institution Integration API",
@@ -114,7 +115,6 @@ export const programmaticApiDescription = (publicOrigin: string): JsonObject => 
     description:
       "Issue, revoke, track completion, discover templates, and reconcile institution credentials. Supply x-api-key. List pages sort by immutable ID ascending; pass nextCursor unchanged and retain the same filters. Dates are inclusive UTC calendar dates. Only email identities use case-insensitive matching. Authenticated responses are never cached.",
   },
-  servers: [{ url: canonicalAppOrigin(publicOrigin) }],
   security: [{ IntegrationKey: [] }],
   paths: {
     "/v1/programmatic/issue": { post: write("issueBadge", "queue.issue", "IssueRequest") },
@@ -183,4 +183,10 @@ export const programmaticApiDescription = (publicOrigin: string): JsonObject => 
       AssertionPage: jsonSchema(programmaticAssertionPageSchema),
     },
   },
+};
+
+/** OpenAPI 3.1 generated once from runtime schemas, with the configured public server. */
+export const programmaticApiDescription = (publicOrigin: string): JsonObject => ({
+  ...description,
+  servers: [{ url: canonicalAppOrigin(publicOrigin) }],
 });

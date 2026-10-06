@@ -26,11 +26,8 @@ export interface QueueIngressCommandStore {
   ): Promise<BadgeTemplateRecord | null>;
 }
 
-/** Persistence required to authorize a programmatic queue command. */
-export type QueueIngressAuthorizationStore = ProgrammaticAuthorizationStore;
-
 /** Complete persistence boundary used by queue-ingress HTTP routes. */
-export type QueueIngressStore = QueueIngressCommandStore & QueueIngressAuthorizationStore;
+export type QueueIngressStore = QueueIngressCommandStore & ProgrammaticAuthorizationStore;
 
 /** Binds queue-ingress persistence to one Postgres request context. */
 export const createPostgresQueueIngressStore = (db: SqlDatabase): QueueIngressStore => {

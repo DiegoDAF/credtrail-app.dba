@@ -1,10 +1,9 @@
 import {
   parseProcessQueueRequest,
+  programmaticAcceptedSchema,
   programmaticIssueBadgeRequestSchema,
   programmaticRevokeBadgeRequestSchema,
-  type IssueBadgeRequest,
   type ProcessQueueRequest,
-  type RevokeBadgeRequest,
 } from "@credtrail/validation";
 import type { Hono } from "hono";
 import type { AppBindings, AppContext, AppEnv } from "../app/types";
@@ -15,7 +14,6 @@ import {
   type IssueBadgeQueueEnvelope,
   type IssueQueueIngressResult,
   type RevokeBadgeQueueEnvelope,
-  type RevokeQueueIngressResult,
 } from "../queue/ingress-service";
 import { authorizeProgrammaticWriteRequest } from "../auth/programmatic-api-key";
 import { parseProgrammaticInput, programmaticApiError } from "../http/programmatic-api-response";
@@ -60,14 +58,10 @@ const authorizeTrustedInternalRequest = (c: AppContext): Response | null => {
   return null;
 };
 
-const issueQueueResponse = (
-  c: AppContext,
-  result: IssueQueueIngressResult,
-  channel?: "programmatic_api_key",
-): Response => {
+const issueQueueResponse = (c: AppContext, result: IssueQueueIngressResult): Response => {
   switch (result.status) {
     case "queued":
-      return createQueuedIssueResponse(c, result.envelope, channel);
+      return createQueuedResponse(c, result.envelope);
     case "idempotency_conflict":
       return programmaticApiError(
         c,
@@ -93,28 +87,9 @@ const issueQueueResponse = (
   }
 };
 
-const revokeQueueResponse = (
+const createQueuedResponse = (
   c: AppContext,
-  request: RevokeBadgeRequest,
-  result: RevokeQueueIngressResult,
-  channel?: "programmatic_api_key",
-): Response => {
-  if (result.status === "idempotency_conflict") {
-    return programmaticApiError(
-      c,
-      409,
-      "idempotency_conflict",
-      "This idempotency key is already assigned to a different request",
-    );
-  }
-
-  return createQueuedRevokeResponse(c, request.assertionId, result.envelope, channel);
-};
-
-const createQueuedIssueResponse = (
-  c: AppContext,
-  queued: IssueBadgeQueueEnvelope,
-  channel?: "programmatic_api_key",
+  queued: IssueBadgeQueueEnvelope | RevokeBadgeQueueEnvelope,
 ): Response => {
   const statusUrl = programmaticOperationStatusUrl(
     c.env.PUBLIC_APP_ORIGIN,
@@ -122,79 +97,19 @@ const createQueuedIssueResponse = (
     queued.operationId,
   );
   c.header("Location", statusUrl);
-  c.header("Cache-Control", "no-store");
   return c.json(
-    {
+    programmaticAcceptedSchema.parse({
+      status: "queued",
+      channel: "programmatic_api_key",
       operationId: queued.operationId,
       statusUrl,
-      status: "queued",
-      ...(channel === undefined ? {} : { channel }),
       jobType: queued.job.jobType,
-      assertionId: queued.assertionId,
+      assertionId: queued.job.payload.assertionId,
       idempotencyKey: queued.job.idempotencyKey,
-    },
+      ...("revocationId" in queued ? { revocationId: queued.revocationId } : {}),
+    }),
     202,
   );
-};
-
-const createQueuedRevokeResponse = (
-  c: AppContext,
-  assertionId: string,
-  queued: RevokeBadgeQueueEnvelope,
-  channel?: "programmatic_api_key",
-): Response => {
-  const statusUrl = programmaticOperationStatusUrl(
-    c.env.PUBLIC_APP_ORIGIN,
-    queued.job.tenantId,
-    queued.operationId,
-  );
-  c.header("Location", statusUrl);
-  c.header("Cache-Control", "no-store");
-  return c.json(
-    {
-      operationId: queued.operationId,
-      statusUrl,
-      status: "queued",
-      ...(channel === undefined ? {} : { channel }),
-      jobType: queued.job.jobType,
-      assertionId,
-      revocationId: queued.revocationId,
-      idempotencyKey: queued.job.idempotencyKey,
-    },
-    202,
-  );
-};
-
-const handleIssueCommand = async (
-  c: AppContext,
-  store: QueueIngressStore,
-  request: IssueBadgeRequest,
-  requestedByUserId?: string,
-  channel?: "programmatic_api_key",
-): Promise<Response> => {
-  const result = await issueQueueIngressCommand({
-    store,
-    artworkStore: c.env.BADGE_OBJECTS,
-    publicAppOrigin: c.env.PUBLIC_APP_ORIGIN,
-    request,
-    ...(requestedByUserId === undefined ? {} : { requestedByUserId }),
-  });
-  return issueQueueResponse(c, result, channel);
-};
-
-const handleRevokeCommand = async (
-  c: AppContext,
-  store: QueueIngressStore,
-  request: RevokeBadgeRequest,
-  requestedByUserId?: string,
-  channel?: "programmatic_api_key",
-): Promise<Response> => {
-  const result = await revokeQueueIngressCommand({
-    store,
-    request,
-    ...(requestedByUserId === undefined ? {} : { requestedByUserId }),
-  });
-  return revokeQueueResponse(c, request, result, channel);
 };
 
 const readProgrammaticJson = async (c: AppContext): Promise<unknown> => {
@@ -240,9 +155,15 @@ export const registerQueueRoutes = (input: RegisterQueueRoutesInput): void => {
       input.sha256Hex,
     );
 
-    return "response" in auth
-      ? auth.response
-      : handleIssueCommand(c, store, parsed.value, auth.actorUserId, "programmatic_api_key");
+    if ("response" in auth) return auth.response;
+    const result = await issueQueueIngressCommand({
+      store,
+      artworkStore: c.env.BADGE_OBJECTS,
+      publicAppOrigin: c.env.PUBLIC_APP_ORIGIN,
+      request: parsed.value,
+      requestedByUserId: auth.actorUserId,
+    });
+    return issueQueueResponse(c, result);
   });
 
   app.post("/v1/programmatic/revoke", async (c) => {
@@ -264,8 +185,20 @@ export const registerQueueRoutes = (input: RegisterQueueRoutesInput): void => {
       input.sha256Hex,
     );
 
-    return "response" in auth
-      ? auth.response
-      : handleRevokeCommand(c, store, parsed.value, auth.actorUserId, "programmatic_api_key");
+    if ("response" in auth) return auth.response;
+    const result = await revokeQueueIngressCommand({
+      store,
+      request: parsed.value,
+      requestedByUserId: auth.actorUserId,
+    });
+    if (result.status === "idempotency_conflict") {
+      return programmaticApiError(
+        c,
+        409,
+        "idempotency_conflict",
+        "This idempotency key is already assigned to a different request",
+      );
+    }
+    return createQueuedResponse(c, result.envelope);
   });
 };

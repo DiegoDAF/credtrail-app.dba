@@ -60,6 +60,7 @@ describe("POST /v1/programmatic/issue and /v1/programmatic/revoke", () => {
     );
     const body = await response.json<Record<string, unknown>>();
 
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.status).toBe(202);
     expect(body.channel).toBe("programmatic_api_key");
     expect(store.enqueuedInputs).toHaveLength(1);
@@ -111,6 +112,7 @@ describe("POST /v1/programmatic/issue and /v1/programmatic/revoke", () => {
       createQueueIngressTestEnv(),
     );
 
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({ code: "artwork_required", error });
     expect(store.enqueuedInputs).toHaveLength(0);
@@ -143,6 +145,7 @@ describe("POST /v1/programmatic/issue and /v1/programmatic/revoke", () => {
       },
     );
 
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
       code: "storage_unavailable",
@@ -171,6 +174,7 @@ describe("POST /v1/programmatic/issue and /v1/programmatic/revoke", () => {
       createQueueIngressTestEnv(),
     );
 
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.status).toBe(202);
     await expect(response.json()).resolves.toMatchObject({
       status: "queued",
@@ -214,6 +218,7 @@ describe("POST /v1/programmatic/issue and /v1/programmatic/revoke", () => {
       assertionId: "assertion_original",
       idempotencyKey: "idem_programmatic_issue_123",
     });
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.status).toBe(202);
     expect(store.badgeTemplateLookups).toHaveLength(0);
     expect(store.enqueuedInputs).toHaveLength(0);
@@ -241,6 +246,7 @@ describe("POST /v1/programmatic/issue and /v1/programmatic/revoke", () => {
       createQueueIngressTestEnv(),
     );
 
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.status).toBe(202);
     await expect(response.json()).resolves.toMatchObject({
       assertionId: "assertion_original",
@@ -272,6 +278,7 @@ describe("POST /v1/programmatic/issue and /v1/programmatic/revoke", () => {
       createQueueIngressTestEnv(),
     );
 
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
       code: "idempotency_conflict",
@@ -298,6 +305,7 @@ describe("POST /v1/programmatic/issue and /v1/programmatic/revoke", () => {
     );
     const body = await response.json<Record<string, unknown>>();
 
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.status).toBe(401);
     expect(body.error).toContain("x-api-key");
     expect(store.enqueuedInputs).toHaveLength(0);
@@ -324,6 +332,7 @@ describe("POST /v1/programmatic/issue and /v1/programmatic/revoke", () => {
     );
     const body = await response.json<Record<string, unknown>>();
 
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.status).toBe(400);
     expect(body.error).toBe("Invalid request payload");
     expect(store.enqueuedInputs).toHaveLength(0);
@@ -351,6 +360,7 @@ describe("POST /v1/programmatic/issue and /v1/programmatic/revoke", () => {
     );
     const body = await response.json<Record<string, unknown>>();
 
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.status).toBe(403);
     expect(body.error).toContain("owning user");
     expect(store.enqueuedInputs).toHaveLength(0);

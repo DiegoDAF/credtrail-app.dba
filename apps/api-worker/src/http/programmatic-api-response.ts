@@ -9,7 +9,10 @@ export const programmaticApiError = (
   status: ContentfulStatusCode,
   code: ProgrammaticErrorCode,
   error: string,
-): Response => c.json({ code, error }, status);
+): Response => {
+  c.header("Cache-Control", "no-store");
+  return c.json({ code, error }, status);
+};
 
 /** Parses unknown protocol input and projects validation errors without submitted values. */
 export const parseProgrammaticInput = <Value>(
@@ -17,6 +20,7 @@ export const parseProgrammaticInput = <Value>(
   schema: z.ZodType<Value>,
   input: unknown,
 ): { readonly value: Value } | { readonly response: Response } => {
+  c.header("Cache-Control", "no-store");
   const parsed = schema.safeParse(input);
   if (!parsed.success) {
     return {

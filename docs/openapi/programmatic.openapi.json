@@ -5,11 +5,6 @@
     "version": "1.0.0",
     "description": "Issue, revoke, track completion, discover templates, and reconcile institution credentials. Supply x-api-key. List pages sort by immutable ID ascending; pass nextCursor unchanged and retain the same filters. Dates are inclusive UTC calendar dates. Only email identities use case-insensitive matching. Authenticated responses are never cached."
   },
-  "servers": [
-    {
-      "url": "https://credtrail.org"
-    }
-  ],
   "security": [
     {
       "IntegrationKey": []
@@ -827,56 +822,102 @@
       },
       "Accepted": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "const": "queued"
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "queued"
+              },
+              "channel": {
+                "type": "string",
+                "const": "programmatic_api_key"
+              },
+              "assertionId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "idempotencyKey": {
+                "type": "string"
+              },
+              "operationId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "statusUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "jobType": {
+                "type": "string",
+                "const": "issue_badge"
+              }
+            },
+            "required": [
+              "status",
+              "channel",
+              "assertionId",
+              "idempotencyKey",
+              "operationId",
+              "statusUrl",
+              "jobType"
+            ],
+            "additionalProperties": false
           },
-          "channel": {
-            "type": "string",
-            "const": "programmatic_api_key"
-          },
-          "jobType": {
-            "type": "string",
-            "enum": [
-              "issue_badge",
-              "revoke_badge"
-            ]
-          },
-          "assertionId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          },
-          "revocationId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          },
-          "idempotencyKey": {
-            "type": "string"
-          },
-          "operationId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          },
-          "statusUrl": {
-            "type": "string",
-            "format": "uri"
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "queued"
+              },
+              "channel": {
+                "type": "string",
+                "const": "programmatic_api_key"
+              },
+              "assertionId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "idempotencyKey": {
+                "type": "string"
+              },
+              "operationId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "statusUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "jobType": {
+                "type": "string",
+                "const": "revoke_badge"
+              },
+              "revocationId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              }
+            },
+            "required": [
+              "status",
+              "channel",
+              "assertionId",
+              "idempotencyKey",
+              "operationId",
+              "statusUrl",
+              "jobType",
+              "revocationId"
+            ],
+            "additionalProperties": false
           }
-        },
-        "required": [
-          "status",
-          "channel",
-          "jobType",
-          "assertionId",
-          "idempotencyKey",
-          "operationId",
-          "statusUrl"
-        ],
-        "additionalProperties": false
+        ]
       },
       "Operation": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1592,5 +1633,10 @@
         "additionalProperties": false
       }
     }
-  }
+  },
+  "servers": [
+    {
+      "url": "https://credtrail.org"
+    }
+  ]
 }

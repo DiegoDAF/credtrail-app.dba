@@ -1,4 +1,4 @@
-import { createTenantApiKey, type SqlDatabase } from "@credtrail/db";
+import { createTenantApiKey, findProgrammaticOperation, type SqlDatabase } from "@credtrail/db";
 import {
   programmaticAcceptedSchema,
   programmaticOperationSchema,
@@ -151,6 +151,17 @@ describeDbIntegration("programmatic completion and institution reads", () => {
     const pending = await get(path, token);
     expect(pending.headers.get("cache-control")).toBe("no-store");
     expect(pending.headers.get("retry-after")).toBe("5");
+    const storedPending = await findProgrammaticOperation(f.db, f.tenantId, envelope.operationId);
+    expect(storedPending).toMatchObject({ status: "pending", assertionId: envelope.assertionId });
+    for (const field of [
+      "payloadJson",
+      "lastError",
+      "leaseToken",
+      "completedAt",
+      "failedAt",
+      "publicId",
+    ])
+      expect(storedPending).not.toHaveProperty(field);
     expect(programmaticOperationSchema.parse(await pending.json())).toMatchObject({
       status: "pending",
       assertionId: envelope.assertionId,
@@ -183,6 +194,14 @@ describeDbIntegration("programmatic completion and institution reads", () => {
         credentialUrl: "https://badges.example.edu/badges/published-badge/jsonld",
       },
     });
+    await f.db
+      .prepare("DELETE FROM assertions WHERE tenant_id = ? AND id = ?")
+      .bind(f.tenantId, envelope.assertionId)
+      .run();
+    expect(programmaticOperationSchema.parse(await (await get(path, token)).json())).toMatchObject({
+      status: "completed",
+      result: { badgeUrl: null, credentialUrl: null },
+    });
     const revoke = programmaticAcceptedSchema.parse(
       await (
         await post("/v1/programmatic/revoke", token, {
@@ -209,6 +228,16 @@ describeDbIntegration("programmatic completion and institution reads", () => {
       status: "failed",
       failure: { code: "operation_failed" },
     });
+    await f.db
+      .prepare(
+        "UPDATE job_queue_messages SET job_type = 'process_badge_rule_lifecycle' WHERE id = ?",
+      )
+      .bind(revoke.operationId)
+      .run();
+    expect(
+      (await get(new URL(revoke.statusUrl).pathname + new URL(revoke.statusUrl).search, token))
+        .status,
+    ).toBe(404);
   });
 
   it("paginates templates without duplication and keeps archived templates opt-in", async () => {
@@ -404,6 +433,7 @@ describeDbIntegration("programmatic completion and institution reads", () => {
       env,
     );
     expect(invalid.status).toBe(400);
+    expect(invalid.headers.get("cache-control")).toBe("no-store");
     expect(await invalid.json()).toMatchObject({ code: "invalid_request" });
     const document = await get("/v1/programmatic/openapi.json");
     expect(document.status).toBe(200);
