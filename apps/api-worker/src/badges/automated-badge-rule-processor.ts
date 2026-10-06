@@ -186,13 +186,11 @@ const candidateLearnersFromRosters = (
 
   const candidates = [...statesByLearnerId.values()]
     .filter((state) => !conflictingLearnerIds.has(state.learnerId))
-    .map(
-      (state): AutomatedLearnerCandidate => ({
-        learnerId: state.learnerId,
-        displayName: state.displayName,
-        email: state.emailsByNormalizedValue.values().next().value ?? null,
-      }),
-    )
+    .map((state): AutomatedLearnerCandidate => ({
+      learnerId: state.learnerId,
+      displayName: state.displayName,
+      email: state.emailsByNormalizedValue.values().next().value ?? null,
+    }))
     .sort((left, right) => left.learnerId.localeCompare(right.learnerId));
 
   return {

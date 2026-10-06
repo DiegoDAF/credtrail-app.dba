@@ -131,6 +131,13 @@ Run from the workspace root:
 
 OB3 OpenAPI snapshot file: `docs/openapi/ims-ob-v3p0.openapi.json`
 
+Accessibility lint allows explicit native list and table roles: Safari can drop
+list semantics after styling, and the mobile badge table uses block/grid layout.
+Table containers and cells are excluded from control-label checks; their controls
+are checked separately, and nested summary labels are inspected three levels deep.
+`prefer-tag-over-role` is disabled because its replacements cannot represent
+composite charts, inline SVG, action groups, or live status messages correctly.
+
 ## Local development
 
 Use Wrangler local with local Postgres and Wrangler R2 emulation for daily app

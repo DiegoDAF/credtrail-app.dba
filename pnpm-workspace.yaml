@@ -3,16 +3,19 @@ packages:
   - packages/*
 overrides:
   "@digitalbazaar/http-client>undici": 6.28.1
-  "@types/node": 24.13.2
+  "@types/node": 24.19.0
   esbuild: 0.28.1
-  jose: 6.2.3
+  jose: 6.2.12
   nanoid: 3.3.18
   postcss: 8.5.26
+  source-map-js: 1.2.2
   zod: 4.6.5
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   # Selected SMTP release includes current security fixes; verify TLS/protocol behavior before release.
   - "nodemailer@10.0.14"
+  # Patch fixes GHSA-68fv-2mgg-jv7q; verify both runtime builds before release.
+  - "source-map-js@1.2.2"
   # CredTrail is a co-author on @longsightgroup/lti-tool, so we can safely consume coordinated releases immediately.
   - "@longsightgroup/lti-tool"
   # Wrangler updates unblock local Cloudflare compatibility checks and are verified before commit.

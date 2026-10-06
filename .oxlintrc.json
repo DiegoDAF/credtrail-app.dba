@@ -22,7 +22,12 @@
     ],
     "ban-tslint-comment": "error",
     "import/no-duplicates": "error",
-    "no-console": ["error", { "allow": ["warn", "error"] }],
+    "no-console": [
+      "error",
+      {
+        "allow": ["warn", "error"]
+      }
+    ],
     "no-restricted-imports": [
       "error",
       {
@@ -71,7 +76,44 @@
         "jsx-a11y/alt-text": "error",
         "jsx-a11y/img-redundant-alt": "warn",
         "jsx-a11y/html-has-lang": "error",
-        "jsx-a11y/label-has-associated-control": "error"
+        "jsx-a11y/label-has-associated-control": "error",
+        "jsx-a11y/no-redundant-roles": [
+          "warn",
+          {
+            "ul": ["list"],
+            "ol": ["list"],
+            "table": ["table"],
+            "thead": ["rowgroup"],
+            "tbody": ["rowgroup"],
+            "tr": ["row"],
+            "td": ["cell"]
+          }
+        ],
+        "jsx-a11y/no-interactive-element-to-noninteractive-role": [
+          "warn",
+          {
+            "tr": ["row"],
+            "td": ["cell"]
+          }
+        ],
+        "jsx-a11y/control-has-associated-label": [
+          "warn",
+          {
+            "depth": 3,
+            "ignoreElements": [
+              "audio",
+              "canvas",
+              "embed",
+              "input",
+              "textarea",
+              "tr",
+              "video",
+              "td",
+              "table"
+            ]
+          }
+        ],
+        "jsx-a11y/prefer-tag-over-role": "off"
       }
     },
     {
@@ -90,6 +132,30 @@
       "rules": {
         "jest/require-to-throw-message": "off",
         "vitest/require-to-throw-message": "off"
+      }
+    },
+    {
+      "files": ["apps/api-worker/src/http-smoke.test.ts"],
+      "rules": {
+        "jest/expect-expect": [
+          "warn",
+          {
+            "assertFunctionNames": ["expect", "expectDirectiveContains", "expectDirectiveOmits"]
+          }
+        ],
+        "vitest/expect-expect": [
+          "warn",
+          {
+            "assertFunctionNames": [
+              "expect",
+              "expectTypeOf",
+              "assert",
+              "assertType",
+              "expectDirectiveContains",
+              "expectDirectiveOmits"
+            ]
+          }
+        ]
       }
     }
   ]
