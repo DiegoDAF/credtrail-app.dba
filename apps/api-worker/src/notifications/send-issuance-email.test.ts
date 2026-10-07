@@ -148,5 +148,7 @@ describe("issuance email content", () => {
     expect(messages[0]?.html).toContain("Valid until");
     expect(messages[0]?.html).toContain("December 31, 2027");
     expect(messages[0]?.text).toContain("Valid until: December 31, 2027");
+    expect(messages[0]?.html).toContain("expirationYear=2027");
+    expect(messages[0]?.html).toContain("expirationMonth=12");
   });
 });

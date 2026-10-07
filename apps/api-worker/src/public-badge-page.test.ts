@@ -751,6 +751,42 @@ describe("GET /badges/:badgeIdentifier", () => {
     expect(body.verification.status).toBe("active");
   });
 
+  it("shows the expiry on the public page and passes it to the LinkedIn profile link", async () => {
+    const env = createEnv();
+    const credential: JsonObject = {
+      id: "urn:credtrail:assertion:tenant_123%3Aassertion_456",
+      issuer: { name: "Example University" },
+      credentialSubject: { achievement: { name: "TypeScript Foundations" } },
+      validUntil: "2027-01-31T23:59:59.000Z",
+    };
+
+    mockedFindAssertionByPublicId.mockResolvedValue({
+      ...sampleAssertion(),
+      validUntil: "2027-01-31T23:59:59.000Z",
+    });
+    mockedGetImmutableCredentialObject.mockResolvedValue(credential);
+
+    const pageResponse = await app.request(
+      "/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22",
+      undefined,
+      env,
+    );
+    const pageBody = await pageResponse.text();
+
+    expect(pageResponse.status).toBe(200);
+    expect(pageBody).toContain("Valid until Jan 31, 2027");
+
+    const profileResponse = await app.request(
+      "/badges/40a6dc92-85ec-4cb0-8a50-afb2ae700e22/share/linkedin-profile",
+      undefined,
+      env,
+    );
+
+    expect(profileResponse.status).toBe(302);
+    expect(profileResponse.headers.get("location")).toContain("expirationYear=2027");
+    expect(profileResponse.headers.get("location")).toContain("expirationMonth=1");
+  });
+
   it("routes supported share actions through CredTrail before redirecting outward", async () => {
     const env = createEnv();
     const credential: JsonObject = {

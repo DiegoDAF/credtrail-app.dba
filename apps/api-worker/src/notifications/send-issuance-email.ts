@@ -63,6 +63,7 @@ export const sendIssuanceEmailNotification = async (
     badgeName: input.badgeTitle,
     issuerName: institution,
     issuedAtIso: input.issuedAtIso,
+    validUntilIso: input.validUntilIso ?? null,
     credentialUrl: input.publicBadgeUrl,
     credentialId: credentialIdFromPublicUrl(input.publicBadgeUrl),
   });
