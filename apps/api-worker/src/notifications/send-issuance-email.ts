@@ -23,6 +23,8 @@ export interface SendIssuanceEmailNotificationInput {
   badgeImageUrl?: string | null | undefined;
   /** Issuer's LinkedIn company page ID, so "Add to LinkedIn" links the certification to the page. */
   linkedInOrganizationId?: LinkedInOrganizationId | null | undefined;
+  /** Expiry of the credential, when it has one. */
+  validUntilIso?: string | null | undefined;
 }
 
 /** The public id, as in the badge URL and on the badge page's own LinkedIn link. */
@@ -82,7 +84,12 @@ export const sendIssuanceEmailNotification = async (
         ...(description.length > 0 ? [description] : []),
         "View your badge to see your achievement and share it with others.",
       ],
-      details: [{ label: "Issued", value: formatIssuedDate(input.issuedAtIso) }],
+      details: [
+        { label: "Issued", value: formatIssuedDate(input.issuedAtIso) },
+        ...(input.validUntilIso === undefined || input.validUntilIso === null
+          ? []
+          : [{ label: "Valid until", value: formatIssuedDate(input.validUntilIso) }]),
+      ],
       action: { label: "View your badge", url: input.publicBadgeUrl },
       secondaryActions: [
         { label: "Add to LinkedIn", url: linkedInUrl },

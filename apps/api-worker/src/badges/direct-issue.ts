@@ -377,6 +377,15 @@ export const createIssueBadgeForTenant = <
           : { renewalOfAssertionId: renewal.renewalOfAssertionId }),
       };
     }
+    // A caller-supplied expiry (manual form, manual API, programmatic API). A renewable rule keeps its own cycle.
+    if (validity.validUntil === undefined && request.validUntil !== undefined) {
+      if (Date.parse(request.validUntil) <= Date.parse(issuedAt)) {
+        throw new input.HttpErrorResponseClass(422, {
+          error: "Valid until must be later than the issue date.",
+        });
+      }
+      validity = { validUntil: request.validUntil };
+    }
 
     const resolvedAchievement = await resolveIssuableBadgeAchievementSnapshot({
       store: context.env.BADGE_OBJECTS,
@@ -650,6 +659,7 @@ export const createIssueBadgeForTenant = <
           badgeDescription: achievement.description,
           badgeImageUrl: achievement.imageUri,
           linkedInOrganizationId: linkedInSettings?.organizationId ?? null,
+          validUntilIso: validity.validUntil ?? null,
         });
       },
     });

@@ -135,4 +135,18 @@ describe("issuance email content", () => {
     expect(messages[0]?.html).not.toContain("<img");
     expect(messages[0]?.html).toContain("View your badge");
   });
+
+  it("shows the expiry date when the credential has one", async () => {
+    const { emailBinding, messages } = createRecordingEmailBinding();
+
+    await sendIssuanceEmailNotification({
+      ...baseInput,
+      emailBinding,
+      validUntilIso: "2027-12-31T23:59:59.000Z",
+    });
+
+    expect(messages[0]?.html).toContain("Valid until");
+    expect(messages[0]?.html).toContain("December 31, 2027");
+    expect(messages[0]?.text).toContain("Valid until: December 31, 2027");
+  });
 });

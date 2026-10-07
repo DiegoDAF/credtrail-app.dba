@@ -109,6 +109,7 @@ export const registerTenantNotificationRetryAdminRoutes = (
             badgeDescription: assertion.achievementSnapshot.description,
             badgeImageUrl: assertion.achievementSnapshot.imageUri,
             linkedInOrganizationId: linkedInSettings?.organizationId ?? null,
+            validUntilIso: assertion.validUntil,
           });
         },
       });
